@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: amora-mini-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ConnectionStrings__Default
+        sync: false
+      - key: Bootstrap__Email
+        sync: false
+      - key: Bootstrap__Password
+        sync: false
+      - key: AllowedOrigins
+        sync: false
+      - key: R2__Endpoint
+        sync: false
+      - key: R2__Bucket
+        sync: false
+      - key: R2__AccessKeyId
+        sync: false
+      - key: R2__SecretAccessKey
+        sync: false

@@ -1,0 +1,36 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: amora
+      POSTGRES_USER: amora
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    ports: ["127.0.0.1:5432:5432"]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U amora -d amora"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Default: Host=db;Port=5432;Database=amora;Username=amora;Password=${POSTGRES_PASSWORD}
+      Bootstrap__Email: ${BOOTSTRAP_EMAIL:?Set BOOTSTRAP_EMAIL}
+      Bootstrap__Password: ${BOOTSTRAP_PASSWORD:?Set BOOTSTRAP_PASSWORD}
+      AllowedOrigins: http://localhost:3000,http://localhost:5173
+      Storage__LocalDirectory: /app/uploads
+    ports: ["127.0.0.1:8080:8080"]
+    volumes: [uploads:/app/uploads]
+    depends_on:
+      db: { condition: service_healthy }
+  frontend:
+    build: ./frontend
+    ports: ["127.0.0.1:3000:8080"]
+    depends_on: [backend]
+volumes:
+  pgdata:
+  uploads:

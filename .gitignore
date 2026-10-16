@@ -1,0 +1,25 @@
+# Mật khẩu và cấu hình riêng
+.env
+.env.*
+!.env.example
+!backend/.env.production.example
+!frontend/.env.production.example
+
+# Thư viện và kết quả build
+node_modules/
+dist/
+bin/
+obj/
+*.tsbuildinfo
+
+# Ảnh local và dữ liệu sao lưu
+uploads/
+.data/
+backups/
+*.dump
+*backup*.json
+
+# File tạm
+*.log
+__pycache__/
+.DS_Store
