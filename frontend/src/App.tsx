@@ -1,5 +1,6 @@
 import React, { useEffect, useState, FormEvent, ReactNode } from "react";
 import {
+  ApiError,
   api,
   request,
   token,
@@ -18,26 +19,31 @@ import { Products, Prices } from "./pages/Catalogue";
 import { Customers } from "./pages/Customers";
 import { SalesPage } from "./pages/Sales";
 import { Commissions, Users } from "./pages/Team";
+import { Directories } from "./pages/Directories";
 import { Settings } from "./pages/Settings";
 const routes = [
   ["dashboard", "Tổng quan"],
-  ["products", "Sản phẩm"],
-  ["prices", "Bảng giá"],
-  ["orders", "Đơn hàng"],
-  ["quotes", "Báo giá"],
-  ["customers", "Khách hàng"],
-  ["commissions", "Hoa hồng"],
   ["users", "Cộng tác viên"],
+  ["products", "Danh mục sản phẩm"],
+  ["prices", "Bảng giá"],
+  ["quotes", "Báo giá"],
+  ["orders", "Đơn hàng"],
+  ["commissions", "Hoa hồng"],
+  ["customers", "Khách hàng"],
+  ["directories", "Danh mục dùng chung"],
   ["settings", "Thiết lập"],
 ] as const;
 export default function App() {
   const [user, setUser] = useState<User | null>(null),
     [loading, setLoading] = useState(!!token()),
     [page, setPage] = useState("dashboard"),
+    [recordId,setRecordId]=useState<string|undefined>(undefined),
     [menu, setMenu] = useState(false),
     [revision, setRevision] = useState(0),
     [toast, setToast] = useState(""),
-    [account, setAccount] = useState(false);
+    [account, setAccount] = useState(false),
+    [connectionError, setConnectionError] = useState(""),
+    [reconnect, setReconnect] = useState(0);
   const refresh = () => setRevision((x) => x + 1);
   const tell = (s: string) => {
     setToast(s);
@@ -49,13 +55,27 @@ export default function App() {
       setLoading(false);
     };
     window.addEventListener("amora-logout", logout);
-    if (token())
+    let active = true;
+    if (token()) {
+      setLoading(true);
+      setConnectionError("");
       api("/auth/me")
-        .then(setUser)
-        .catch(() => sessionStorage.removeItem("amora-token"))
-        .finally(() => setLoading(false));
-    return () => window.removeEventListener("amora-logout", logout);
-  }, []);
+        .then((u) => {
+          if (active) setUser(u);
+        })
+        .catch((e) => {
+          if (active && !(e instanceof ApiError && e.status === 401))
+            setConnectionError(e.message);
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+    }
+    return () => {
+      active = false;
+      window.removeEventListener("amora-logout", logout);
+    };
+  }, [reconnect]);
   const logout = async () => {
     try {
       await api("/auth/logout", "POST");
@@ -67,6 +87,33 @@ export default function App() {
     setPage("dashboard");
   };
   if (loading) return <div className="loading">Đang kết nối AMORA…</div>;
+  if (connectionError && token())
+    return (
+      <div className="login-shell">
+        <section className="login-card">
+          <div className="wordmark">AMORA</div>
+          <h2>Đang chờ kết nối</h2>
+          <p>{connectionError}</p>
+          <p>Phiên của bạn vẫn được giữ. Hãy thử kết nối lại sau ít phút.</p>
+          <button
+            className="primary"
+            onClick={() => setReconnect((n) => n + 1)}
+          >
+            Kết nối lại
+          </button>
+          <button
+            className="ghost"
+            onClick={() => {
+              sessionStorage.removeItem("amora-token");
+              setConnectionError("");
+              setUser(null);
+            }}
+          >
+            Về màn hình đăng nhập
+          </button>
+        </section>
+      </div>
+    );
   if (!user)
     return (
       <Login
@@ -88,7 +135,8 @@ export default function App() {
       </div>
     );
   const manager = user.role === "manager";
-  const common = { user, revision, refresh, tell };
+  const launch=(page:string,id?:string)=>{setRecordId(id);setPage(page);setMenu(false)};
+  const common = { user, revision, refresh, tell,recordId,launch };
   return (
     <div className="app">
       <aside className={menu ? "sidebar open" : "sidebar"}>
@@ -100,14 +148,14 @@ export default function App() {
         <nav>
           {routes
             .filter(
-              ([k]) => manager || !["users", "settings", "prices"].includes(k),
+              ([k]) => manager || !["users", "settings", "prices", "directories"].includes(k),
             )
             .map(([key, label]) => (
               <button
                 key={key}
                 className={page === key ? "active" : ""}
                 onClick={() => {
-                  setPage(key);
+                  setRecordId(undefined);setPage(key);
                   setMenu(false);
                 }}
               >
@@ -144,7 +192,7 @@ export default function App() {
             ☰
           </button>
           <span>
-            AMORA Mini <span className="separator">/</span>{" "}
+            AMORA Studio <span className="separator">/</span>{" "}
             {routes.find(([k]) => k === page)?.[1]}
           </span>
           <div className="top-right">
@@ -166,7 +214,7 @@ export default function App() {
                 {page === "dashboard"
                   ? `Chào ${user.name}. Cùng chăm chút những điều quan trọng hôm nay.`
                   : page === "products"
-                    ? "Bốn mùi hương. Những khoảnh khắc có chủ đích."
+                    ? "Sản phẩm, mùi hương và mức giá để CTV tư vấn."
                     : page === "orders"
                       ? "Theo dõi từng đơn hàng, từ lời hẹn đầu tiên đến khi hoàn tất."
                       : page === "commissions"
@@ -194,6 +242,7 @@ export default function App() {
           {page === "commissions" && <Commissions {...common} />}
           {page === "users" && manager && <Users {...common} />}
           {page === "settings" && manager && <Settings {...common} />}
+          {page === "directories" && manager && <Directories {...common} />}
           <footer className="workspace-footer">
             AMORA STUDIO <span>Ít hơn, nhưng đúng hơn.</span>
           </footer>

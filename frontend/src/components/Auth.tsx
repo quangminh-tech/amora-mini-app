@@ -42,7 +42,7 @@ export function Login({ done }: { done: (u: User) => void }) {
           <i>Để làm việc tốt hơn.</i>
         </h1>
         <p>
-          Quản lý đơn hàng, chăm sóc khách hàng
+          Quản lý cộng tác viên, danh mục sản phẩm
           <br />
           và đồng hành cùng cộng tác viên.
         </p>

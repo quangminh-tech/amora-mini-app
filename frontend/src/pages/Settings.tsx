@@ -44,6 +44,27 @@ export function Settings({ revision, refresh, tell }: Common) {
       setBusy(false);
     }
   }
+  const [checks, setChecks] = useState("");
+  async function testConnection(storage: boolean) {
+    setBusy(true);
+    setErr("");
+    setChecks("");
+    try {
+      await api(
+        storage ? "/admin/storage-check" : "/admin/readiness",
+        storage ? "POST" : "GET",
+      );
+      setChecks(
+        storage
+          ? "Kho ảnh đã ghi, đọc và xóa tệp kiểm tra thành công."
+          : "Dữ liệu đã kết nối thành công.",
+      );
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <>
       <ErrorBox error={error || err} />
@@ -121,9 +142,9 @@ export function Settings({ revision, refresh, tell }: Common) {
         <section className="panel">
           <h2>Sao lưu dữ liệu</h2>
           <p className="muted">
-            Tải bản sao dữ liệu hệ thống dạng JSON. Chứa thông tin khách hàng
-            và mật khẩu đã băm; chỉ giữ tại nơi quản lý tin cậy. Ảnh R2 cần sao
-            lưu riêng.
+            Tải bản sao dữ liệu hệ thống dạng JSON. Chứa thông tin khách hàng và
+            mật khẩu đã băm; chỉ giữ tại nơi quản lý tin cậy. Ảnh R2 cần sao lưu
+            riêng.
           </p>
           <button
             className="secondary"
@@ -153,6 +174,32 @@ export function Settings({ revision, refresh, tell }: Common) {
             toàn cho dữ liệu đang sử dụng.
           </p>
           <hr />
+          <h3>Kiểm tra kết nối</h3>
+          <p className="muted">
+            Kiểm tra khi thiết lập lần đầu hoặc sau khi thay đổi dịch vụ lưu
+            trữ.
+          </p>
+          <div className="detail-actions">
+            <button
+              className="secondary"
+              disabled={busy}
+              onClick={() => testConnection(false)}
+            >
+              Kiểm tra dữ liệu
+            </button>
+            <button
+              className="secondary"
+              disabled={busy}
+              onClick={() => testConnection(true)}
+            >
+              Kiểm tra kho ảnh
+            </button>
+          </div>
+          {checks && (
+            <p role="status" className="notice">
+              {checks}
+            </p>
+          )}
           <h3>Nguyên tắc vận hành</h3>
           <p>
             CTV xem dữ liệu riêng. Giá và hoa hồng được lưu theo từng chứng từ.
@@ -196,6 +243,7 @@ export function Settings({ revision, refresh, tell }: Common) {
 
 export function actionName(v: string) {
   const map: Record<string, string> = {
+    storage_checked: "Kiểm tra kho ảnh",
     login: "Đăng nhập",
     password_changed: "Đổi mật khẩu",
     product_created: "Thêm sản phẩm",

@@ -24,6 +24,7 @@ export function Icon({ name }: { name: string }) {
     commissions: "M3 6h18v13H3zM3 10h18M16 15h2",
     users:
       "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M17 8h5M19.5 5.5v5",
+    directories: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z",
     settings:
       "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2",
   };
@@ -159,6 +160,7 @@ export function useLoad<T>(path: string, revision = 0) {
   useEffect(() => {
     let active = true;
     setError("");
+    setData(null);
     api(path)
       .then((d) => {
         if (active) setData(d);
@@ -171,4 +173,15 @@ export function useLoad<T>(path: string, revision = 0) {
     };
   }, [path, revision]);
   return { data, error };
+}
+
+export function useDebounced(value: string, delay = 250) {
+  const [result,setResult]=useState(value);
+  useEffect(()=>{const id=setTimeout(()=>setResult(value),delay);return()=>clearTimeout(id)},[value,delay]);
+  return result;
+}
+export function Pagination({ data, page, setPage }: {data: Row | null;page:number;setPage:(p:number)=>void}) {
+  if(!data) return null;
+  const pages=Math.max(1,Math.ceil(data.total/data.pageSize));
+  return <div className="pagination"><span>{data.total ? `${(page-1)*data.pageSize+1}–${Math.min(page*data.pageSize,data.total)} / ${data.total}` : "0 kết quả"}</span><div><button className="secondary" disabled={page<=1} onClick={()=>setPage(page-1)}>← Trước</button><span>Trang {page} / {pages}</span><button className="secondary" disabled={page>=pages} onClick={()=>setPage(page+1)}>Sau →</button></div></div>;
 }

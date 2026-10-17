@@ -19,7 +19,8 @@ public static class Seed
             {
                 var s = data[i]; var id = Guid.NewGuid();
                 await c.ExecuteAsync("INSERT INTO scents VALUES(@id,@name,@meaning,@top,@middle,@base,@ritual)", new { id, name = s[0], meaning = s[1], top = s[2], middle = s[3], @base = s[4], ritual = s[5] }, tx);
-                await c.ExecuteAsync("INSERT INTO products(id,sku,name,scent_id,description) VALUES(@pid,@sku,@name,@id,@description)", new { pid = Guid.NewGuid(), sku = $"AM-{i + 1:00}", name = s[0], id, description = s[1] + ". Chưa xác nhận quy cách và giá bán." }, tx);
+                var category=await c.ExecuteScalarAsync<Guid>("SELECT id FROM product_categories WHERE name='Nến thơm'",transaction:tx);
+                await c.ExecuteAsync("INSERT INTO product_models(id,code,name,category_id,description) VALUES(@pid,@code,@name,@category,@description)",new{pid=Guid.NewGuid(),code=$"AM-{i+1:00}",name=s[0],category,description=s[1]},tx);
             }
         }
         if (await c.ExecuteScalarAsync<int>("SELECT count(*) FROM users", transaction: tx) == 0)

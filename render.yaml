@@ -6,10 +6,19 @@ services:
     dockerfilePath: ./backend/Dockerfile
     dockerContext: .
     healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    branch: main
+    buildFilter:
+      paths:
+        - backend/**
+        - database/**
+        - render.yaml
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
         value: Production
       - key: ConnectionStrings__Default
+        sync: false
+      - key: ConnectionStrings__Migrations
         sync: false
       - key: Bootstrap__Email
         sync: false

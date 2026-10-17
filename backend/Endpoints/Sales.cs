@@ -13,14 +13,16 @@ public static class Sales
             var table = type; var quote = table == "quotes"; var fk = quote ? "quote_id" : "order_id"; var lines = quote ? "quote_lines" : "order_lines";
             app.MapGet($"/api/{table}", async (HttpContext ctx, Db db) =>
             {
-                await using var c = await db.Open(); return await c.QueryAsync($"SELECT t.*,u.name AS owner_name,t.customer_snapshot->>'name' AS customer_name FROM {table} t JOIN users u ON u.id=t.owner_id WHERE @manager OR t.owner_id=@uid ORDER BY t.created_at DESC LIMIT 500", new { manager = ctx.User().Manager, uid = ctx.User().Id });
+                return await Listing.Page(ctx, db, "t.*,u.name AS owner_name,t.customer_snapshot->>'name' AS customer_name", $"FROM {table} t JOIN users u ON u.id=t.owner_id", "(@manager OR t.owner_id=@uid) AND (@owner IS NULL OR t.owner_id=@owner) AND (@status='' OR t.status=@status) AND (t.code ILIKE @search OR t.customer_snapshot->>'name' ILIKE @search OR u.name ILIKE @search)", "t.created_at DESC,t.id DESC");
             });
             app.MapGet($"/api/{table}/{{id:guid}}", async (Guid id, HttpContext ctx, Db db) =>
             {
                 await using var c = await db.Open(); var row = await c.QuerySingleOrDefaultAsync($"SELECT * FROM {table} WHERE id=@id", new { id }); Check.That(row is not null, "Không tìm thấy dữ liệu.", 404); ctx.Own((Guid)row!.owner_id);
                 var items = await c.QueryAsync($"SELECT * FROM {lines} WHERE {fk}=@id ORDER BY sku", new { id });
                 var events = quote ? Array.Empty<object>() : await c.QueryAsync("SELECT e.*,u.name AS actor_name FROM order_events e JOIN users u ON u.id=e.actor_id WHERE e.order_id=@id ORDER BY e.created_at", new { id });
-                return Results.Ok(new { record = row, lines = items, events });
+                var payments = quote ? Array.Empty<object>() : await c.QueryAsync("SELECT p.*,u.name AS actor_name FROM payments p LEFT JOIN users u ON u.id=p.actor_id WHERE p.order_id=@id ORDER BY p.created_at,p.id",new {id});
+                var orderId=quote?await c.ExecuteScalarAsync<Guid?>("SELECT id FROM orders WHERE source_quote_id=@id AND (@manager OR owner_id=@uid)",new{id,manager=ctx.User().Manager,uid=ctx.User().Id}):null;
+                return Results.Ok(new { record = row, lines = items, events, payments, orderId });
             });
             app.MapPost($"/api/{table}", async (SaleRequest r, HttpContext ctx, Db db) => await Save(null, quote, r, ctx, db));
             app.MapPut($"/api/{table}/{{id:guid}}", async (Guid id, SaleRequest r, HttpContext ctx, Db db) => await Save(id, quote, r, ctx, db));
@@ -53,6 +55,11 @@ public static class Sales
             Check.That((int)o!.version == r.Version, "Đơn đã thay đổi. Vui lòng tải lại.", 409); Check.That(!new[] { "cancelled", "returned" }.Contains((string)o.status), "Không thể thay đổi tiền trên đơn đã hủy hoặc trả hàng.");
             Check.That(r.Paid <= (decimal)o.subtotal + (decimal)o.shipping, "Số tiền đã thu vượt tổng giá trị đơn.");
             Check.That(await c.ExecuteScalarAsync<int>("SELECT count(*) FROM commissions WHERE order_id=@id AND status IN ('approved','paid')", new { id }, tx) == 0, "Hoa hồng đã duyệt/đã chi; không thể chỉnh tiền thu.", 409);
+            var delta=r.Paid-(decimal)o.paid;
+            Check.That(delta!=0,"Số tiền đã thu không thay đổi.");
+            var occurred=r.OccurredAt ?? DateTime.UtcNow;
+            Check.That(occurred.Kind==DateTimeKind.Utc && occurred<=DateTime.UtcNow.AddMinutes(1) && occurred>=((DateTime)o.created_at).AddMinutes(-1),"Ngày thu tiền phải nằm từ ngày tạo đơn đến hiện tại, có múi giờ UTC.");
+            await c.ExecuteAsync("INSERT INTO payments(id,order_id,actor_id,amount,reference,occurred_at) VALUES(@pid,@id,@actor,@delta,@Reference,@occurred)",new {pid=Guid.NewGuid(),id,actor=ctx.User().Id,delta,r.Reference,occurred},tx);
             await c.ExecuteAsync("UPDATE orders SET paid=@Paid,version=version+1,updated_at=now() WHERE id=@id", new { id, r.Paid }, tx);
             await Event(c, tx, id, ctx.User().Id, "payment", new { before = (decimal)o.paid, after = r.Paid, reference = r.Reference }); await SyncCommission(c, tx, id);
             await db.Audit(c, tx, ctx.User().Id, "payment_recorded", id, new { r.Paid, r.Reference }); await tx.CommitAsync(); return Results.NoContent();
@@ -63,8 +70,24 @@ public static class Sales
             await QuotePolicy(c, tx, ctx); Check.That((int)q.version == r.Version, "Báo giá đã thay đổi. Vui lòng tải lại.", 409);
             var allowed = (string)q.status switch { "draft" => new[] { "sent" }, "sent" => new[] { "draft", "accepted", "rejected" }, _ => Array.Empty<string>() };
             Check.That(allowed.Contains(r.Status), "Trạng thái báo giá không hợp lệ.");
-            if (r.Status == "accepted") Check.That(((DateTime)q.valid_until).Date >= DateTime.UtcNow.AddHours(7).Date, "Báo giá đã hết hạn. Hãy phát hành báo giá mới.");
+            if (r.Status == "accepted") Check.That(Check.Day((object)q.valid_until) >= DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)), "Báo giá đã hết hạn. Hãy phát hành báo giá mới.");
             await c.ExecuteAsync("UPDATE quotes SET status=@Status,version=version+1,updated_at=now() WHERE id=@id", new { id, r.Status }, tx); await db.Audit(c, tx, ctx.User().Id, "quote_status", id, new { r.Status }); await tx.CommitAsync(); return Results.NoContent();
+        });
+    }
+    public static void MapConversion(this WebApplication app){
+        app.MapPost("/api/quotes/{id:guid}/convert",async(Guid id,VersionRequest r,HttpContext ctx,Db db)=>{
+            await using var c=await db.Open();await using var tx=await c.BeginTransactionAsync();
+            var quote=await c.QuerySingleOrDefaultAsync("SELECT * FROM quotes WHERE id=@id FOR UPDATE",new{id},tx);Check.That(quote is not null,"Không tìm thấy báo giá.",404);ctx.Own((Guid)quote!.owner_id);await QuotePolicy(c,tx,ctx);
+            var existing=await c.ExecuteScalarAsync<Guid?>("SELECT id FROM orders WHERE source_quote_id=@id",new{id},tx);
+            if(existing is not null){await tx.CommitAsync();return Results.Ok(new{id=existing,alreadyConverted=true});}
+            Check.That((int)quote.version==r.Version,"Báo giá đã thay đổi. Hãy tải lại.",409);Check.That((string)quote.status=="accepted","Báo giá phải được chấp nhận trước khi tạo đơn.");Check.That(Check.Day((object)quote.valid_until)>=DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)),"Báo giá đã hết hạn.");
+            Check.That(await c.ExecuteScalarAsync<int>("SELECT count(*) FROM quote_lines WHERE quote_id=@id AND commission_rate IS NULL",new{id},tx)==0,"Báo giá cũ chưa có chính sách hoa hồng chốt theo dòng; lập lại báo giá mới.");
+            var order=Guid.NewGuid();var code="DH-"+DateTime.UtcNow.AddHours(7).ToString("yyMMdd")+"-"+Guid.NewGuid().ToString("N")[..10].ToUpperInvariant();
+            var rateSum=await c.ExecuteScalarAsync<decimal>("SELECT COALESCE(sum(round(amount*commission_rate/100,0)),0) FROM quote_lines WHERE quote_id=@id",new{id},tx);
+            var role=await c.ExecuteScalarAsync<string>("SELECT role FROM users WHERE id=@owner",new{owner=(Guid)quote.owner_id},tx);
+            await c.ExecuteAsync("INSERT INTO orders(id,code,owner_id,customer_id,customer_snapshot,channel,subtotal,shipping,commission_total,note,source_quote_id) SELECT @order,@code,owner_id,customer_id,customer_snapshot,channel,subtotal,shipping,@commission,note,id FROM quotes WHERE id=@id",new{order,code,id,commission=role=="ctv"?rateSum:0},tx);
+            await c.ExecuteAsync("INSERT INTO order_lines(id,order_id,product_id,sku,product_name,unit,qty,unit_price,commission_rate,amount,commission,lead_days_min,lead_days_max) SELECT gen_random_uuid(),@order,product_id,sku,product_name,unit,qty,unit_price,commission_rate,amount,round(amount*commission_rate/100,0),lead_days_min,lead_days_max FROM quote_lines WHERE quote_id=@id",new{order,id},tx);
+            await Event(c,tx,order,ctx.User().Id,"created",new{sourceQuote=(string)quote.code});await db.Audit(c,tx,ctx.User().Id,"quote_converted",id,new{order});await tx.CommitAsync();return Results.Ok(new{id=order,alreadyConverted=false});
         });
     }
     static async Task<IResult> Save(Guid? existing, bool quote, SaleRequest r, HttpContext ctx, Db db)
@@ -93,13 +116,13 @@ public static class Sales
         foreach (var l in r.Lines)
         {
             Check.That(l.Qty is > 0 and <= 100000, "Số lượng phải từ 1 đến 100.000.");
-            var p = await c.QuerySingleOrDefaultAsync("SELECT p.id,p.sku,p.name,p.unit,pr.unit_price,pr.commission_rate,pr.min_qty FROM products p JOIN prices pr ON pr.product_id=p.id AND pr.channel=@channel WHERE p.id=@id AND p.active", new { channel = r.Channel, id = l.ProductId }, tx);
-            Check.That(p is not null, "Sản phẩm bị ẩn hoặc chưa có bảng giá cho kênh này."); Check.That(l.Qty >= (int)p!.min_qty, $"{p.name}: số lượng tối thiểu {p.min_qty}.");
+            var p = await c.QuerySingleOrDefaultAsync("SELECT p.id,p.sku,(m.name||CASE WHEN s.name IS NULL OR s.name=m.name THEN '' ELSE ' · '||s.name END||CASE WHEN p.size_label='' THEN '' ELSE ' · '||p.size_label END) AS name,p.unit,p.size_label,p.lead_days_min,p.lead_days_max,pr.unit_price,pr.commission_rate,pr.min_qty FROM products p JOIN product_models m ON m.id=p.model_id JOIN product_categories cat ON cat.id=m.category_id LEFT JOIN scents s ON s.id=p.scent_id JOIN prices pr ON pr.product_id=p.id AND pr.channel=@channel WHERE p.id=@id AND p.active AND m.active AND cat.active AND (p.scent_id IS NULL OR s.active)", new { channel = r.Channel, id = l.ProductId }, tx);
+            Check.That(p is not null, "Sản phẩm bị ẩn hoặc chưa có bảng giá cho kênh này."); Check.That(!string.IsNullOrWhiteSpace((string)p!.size_label),"SKU chưa xác nhận size/quy cách. Quản lý cần bổ sung trước khi báo giá."); Check.That(l.Qty >= (int)p.min_qty, $"{p.name}: số lượng tối thiểu {p.min_qty}.");
             var unitPrice = ctx.User().Manager ? (l.UnitPrice ?? (decimal)p.unit_price) : (decimal)p.unit_price;
             Check.That(ctx.User().Manager || l.UnitPrice is null || l.UnitPrice == (decimal)p.unit_price, "CTV không được thay đổi đơn giá.", 403);
             Check.That(unitPrice is > 0 and <= 1000000000 && decimal.Truncate(unitPrice) == unitPrice, "Đơn giá không hợp lệ.");
             var amount = unitPrice * l.Qty; var rate = (decimal)p.commission_rate;
-            built.Add(new(Guid.NewGuid(), l.ProductId, (string)p.sku, (string)p.name, (string)p.unit, l.Qty, unitPrice, rate, amount, decimal.Round(amount * rate / 100, 0, MidpointRounding.AwayFromZero)));
+            built.Add(new(Guid.NewGuid(), l.ProductId, (string)p.sku, (string)p.name, (string)p.unit, l.Qty, unitPrice, rate, amount, decimal.Round(amount * rate / 100, 0, MidpointRounding.AwayFromZero),(int)p.lead_days_min,(int)p.lead_days_max));
         }
         var subtotal = built.Sum(l => l.Amount); Check.That(subtotal + r.Shipping <= 99999999999999m, "Giá trị chứng từ vượt giới hạn.");
         var commission = await c.ExecuteScalarAsync<string>("SELECT role FROM users WHERE id=@owner", new { owner }, tx) == "ctv" ? built.Sum(l => l.Commission) : 0;
@@ -115,7 +138,7 @@ public static class Sales
             await c.ExecuteAsync(quote ? "UPDATE quotes SET customer_id=@customerId,customer_snapshot=CAST(@snapshot AS jsonb),channel=@channel,subtotal=@subtotal,shipping=@shipping,valid_until=@valid,note=@note,terms=@terms,seller_snapshot=CAST(@business AS jsonb),version=version+1,updated_at=now() WHERE id=@id" : "UPDATE orders SET customer_id=@customerId,customer_snapshot=CAST(@snapshot AS jsonb),channel=@channel,subtotal=@subtotal,shipping=@shipping,commission_total=@commission,note=@note,version=version+1,updated_at=now() WHERE id=@id", args, tx);
         await c.ExecuteAsync($"DELETE FROM {lineTable} WHERE {fk}=@id", new { id }, tx);
         foreach (var l in built)
-            await c.ExecuteAsync(quote ? "INSERT INTO quote_lines VALUES(@Id,@parent,@ProductId,@Sku,@ProductName,@Unit,@Qty,@UnitPrice,@Amount)" : "INSERT INTO order_lines VALUES(@Id,@parent,@ProductId,@Sku,@ProductName,@Unit,@Qty,@UnitPrice,@CommissionRate,@Amount,@Commission)", new { l.Id, parent = id, l.ProductId, l.Sku, l.ProductName, l.Unit, l.Qty, l.UnitPrice, l.CommissionRate, l.Amount, l.Commission }, tx);
+            await c.ExecuteAsync(quote ? "INSERT INTO quote_lines(id,quote_id,product_id,sku,product_name,unit,qty,unit_price,amount,commission_rate,lead_days_min,lead_days_max) VALUES(@Id,@parent,@ProductId,@Sku,@ProductName,@Unit,@Qty,@UnitPrice,@Amount,@CommissionRate,@LeadDaysMin,@LeadDaysMax)" : "INSERT INTO order_lines(id,order_id,product_id,sku,product_name,unit,qty,unit_price,commission_rate,amount,commission,lead_days_min,lead_days_max) VALUES(@Id,@parent,@ProductId,@Sku,@ProductName,@Unit,@Qty,@UnitPrice,@CommissionRate,@Amount,@Commission,@LeadDaysMin,@LeadDaysMax)", new { l.Id, parent = id, l.ProductId, l.Sku, l.ProductName, l.Unit, l.Qty, l.UnitPrice, l.CommissionRate, l.Amount, l.Commission,l.LeadDaysMin,l.LeadDaysMax }, tx);
         if (!quote) await Event(c, tx, id, ctx.User().Id, existing is null ? "created" : "edited", new { subtotal, r.Shipping });
         await db.Audit(c, tx, ctx.User().Id, $"{table}_{(existing is null ? "created" : "edited")}", id); await tx.CommitAsync(); return Results.Ok(new { id });
     }
@@ -133,6 +156,8 @@ public static class Sales
 }
 public record SaleLine(Guid ProductId, int Qty, decimal? UnitPrice);
 public record SaleRequest(Guid CustomerId, string Channel, decimal Shipping, string Note, List<SaleLine> Lines, int? Version, Guid? OwnerId, DateOnly? ValidUntil, string? Terms);
-public record BuiltLine(Guid Id, Guid ProductId, string Sku, string ProductName, string Unit, int Qty, decimal UnitPrice, decimal CommissionRate, decimal Amount, decimal Commission);
+public record BuiltLine(Guid Id, Guid ProductId, string Sku, string ProductName, string Unit, int Qty, decimal UnitPrice, decimal CommissionRate, decimal Amount, decimal Commission,int LeadDaysMin,int LeadDaysMax);
 public record StatusRequest(string Status, int Version, string? Reason);
-public record PaymentRequest(decimal Paid, int Version, string Reference);
+public record PaymentRequest(decimal Paid, int Version, string Reference, DateTime? OccurredAt = null);
+
+public record VersionRequest(int Version);

@@ -19,7 +19,7 @@ import {
   Modal,
   ErrorBox,
   ProductImage,
-  useLoad,
+  useLoad, Pagination, useDebounced,
 } from "../components/UI";
 import { Common } from "../types";
 export function SalesPage({
@@ -27,25 +27,42 @@ export function SalesPage({
   revision,
   refresh,
   tell,
-  type,
+  type,recordId,launch,
 }: Common & { type: "orders" | "quotes" }) {
   const quote = type === "quotes",
     manager = user.role === "manager";
-  const { data: rows, error } = useLoad<Row[]>("/" + type, revision);
-  const { data: catalogue } = useLoad<Row>("/products", revision);
-  const { data: customers } = useLoad<Row[]>("/customers", revision);
+  const [page,setPage]=useState(1);
+  const [search,setSearch]=useState(""),[filter,setFilter]=useState("");
+  const term=useDebounced(search);
+  const {data:result,error}=useLoad<Row>(`/${type}?page=${page}&search=${encodeURIComponent(term)}&status=${filter}`,revision);
+  const rows:Row[] | undefined=result?.items;
+
+  const [customerSearch,setCustomerSearch]=useState("");
+  const customerTerm=useDebounced(customerSearch);
+  const {data: customerResult}=useLoad<Row>(`/customers?page=1&pageSize=30&search=${encodeURIComponent(customerTerm)}`,revision);
+  const customers:Row[] | undefined=customerResult?.items;
   const { data: settings } = useLoad<Row>("/settings", revision);
+  const [userSearch,setUserSearch]=useState("");
+  const userTerm=useDebounced(userSearch);
   const { data: users } = useLoad<Row[]>(
-    manager ? "/admin/users" : "/scents",
+    manager ? "/admin/users?pageSize=30&search="+encodeURIComponent(userTerm) : "/scents",
     revision,
   );
-  const [search, setSearch] = useState(""),
-    [filter, setFilter] = useState(""),
-    [form, setForm] = useState<Row | null>(null),
+  const [form, setForm] = useState<Row | null>(null),
     [detail, setDetail] = useState<Row | null>(null),
     [err, setErr] = useState(""),
     [busy, setBusy] = useState(false),
     [action, setAction] = useState<Row | null>(null);
+  const [productSearch,setProductSearch]=useState("");
+  const productTerm=useDebounced(productSearch);
+  const selectedProductIds=(form?.lines || []).map((l:Row)=>l.productId).filter(Boolean).join(',');
+  const {data:catalogue}=useLoad<Row>(`/products?page=1&pageSize=30&search=${encodeURIComponent(productTerm)}&includeIds=${selectedProductIds}`,revision);
+  const [newContact,setNewContact]=useState<Row|null>(null);
+  async function saveContact(){
+    setBusy(true);setErr("");
+    try {const saved=await api("/customers","POST",newContact);setForm(f=>f?{...f,customerId:saved.id}:f);setNewContact(null);refresh();tell("Đã lưu thông tin người nhận.")}
+    catch(e){setErr((e as Error).message)}finally{setBusy(false)}
+  }
   async function open(id: string) {
     setErr("");
     setBusy(true);
@@ -57,6 +74,7 @@ export function SalesPage({
       setBusy(false);
     }
   }
+  useEffect(()=>{if(recordId)void open(recordId)},[recordId]);
   const newForm = () => {
     setErr("");
     setForm({
@@ -194,15 +212,15 @@ export function SalesPage({
           <span>⌕</span>
           <input
             aria-label="Tìm đơn hoặc báo giá"
-            placeholder="Tìm mã, khách hàng…"
+            placeholder="Tìm mã, khách hàng, CTV…"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {setSearch(e.target.value);setPage(1)}}
           />
         </div>
         <select
           aria-label="Lọc trạng thái"
           value={filter}
-          onChange={(e) => setFilter(e.target.value)}
+          onChange={(e) => {setFilter(e.target.value);setPage(1)}}
         >
           <option value="">Tất cả trạng thái</option>
           {statusOptions.map((s) => (
@@ -240,13 +258,6 @@ export function SalesPage({
             </thead>
             <tbody>
               {rows
-                .filter(
-                  (r) =>
-                    (r.code + " " + r.customer_name)
-                      .toLowerCase()
-                      .includes(search.toLowerCase()) &&
-                    (!filter || r.status === filter),
-                )
                 .map((r) => (
                   <tr key={r.id}>
                     <td className="code">{r.code}</td>
@@ -274,11 +285,7 @@ export function SalesPage({
           <Empty text={"Chưa có " + (quote ? "báo giá" : "đơn hàng") + "."} />
         )}
       </section>
-      {rows && rows.length >= 500 && (
-        <div className="notice">
-          Đang hiển thị 500 chứng từ gần nhất. Bản sao lưu chứa toàn bộ dữ liệu.
-        </div>
-      )}
+      <Pagination data={result} page={page} setPage={setPage}/>
       {form && (
         <Modal
           title={
@@ -287,7 +294,15 @@ export function SalesPage({
           close={() => setForm(null)}
         >
           <form onSubmit={save}>
+            <div className="contact-inline">
+              <button type="button" className="secondary" onClick={()=>setNewContact(newContact?null:{name:"",phone:"",email:"",company:"",address:""})}>{newContact?"Bỏ qua thêm người nhận":"+ Thêm thông tin người nhận mới"}</button>
+              {newContact && <div className="inline-action"><h3>Thông tin người nhận</h3><div className="form-grid">{[["name","Tên người nhận"],["phone","Điện thoại"],["email","Email"],["company","Công ty"],["address","Địa chỉ"]].map(([k,label])=><Field key={k} label={label}><input maxLength={k==="address"?1000:k==="phone"?40:k==="name"?180:200} value={newContact[k]} onChange={e=>setNewContact({...newContact,[k]:e.target.value})}/></Field>)}</div><button type="button" className="primary" disabled={busy||!newContact.name.trim()} onClick={()=>void saveContact()}>Lưu và chọn người nhận</button></div>}
+            </div>
             <div className="form-grid">
+              <Field label="Tìm người nhận báo giá">
+                <input value={customerSearch} placeholder="Tên / điện thoại / email…" onChange={e=>setCustomerSearch(e.target.value)}/>
+                <small className="muted">Hiển thị tối đa 30 kết quả mỗi lần tìm.</small>
+              </Field>
               <Field label="Khách hàng">
                 <select
                   required
@@ -297,6 +312,7 @@ export function SalesPage({
                   }
                 >
                   <option value="">Chọn khách hàng</option>
+                  {form.customerId && !customers?.some(c=>c.id===form.customerId) && <option value={form.customerId}>Khách hàng đã chọn trên chứng từ</option>}
                   {customers?.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name} {c.phone && "· " + c.phone}
@@ -326,12 +342,15 @@ export function SalesPage({
               </Field>
               {manager && !form.id && (
                 <Field label="Người phụ trách / hưởng hoa hồng">
+                  <input aria-label="Tìm người phụ trách" placeholder="Tìm tên hoặc email CTV…" value={userSearch} onChange={e=>setUserSearch(e.target.value)}/>
+
                   <select
                     value={form.ownerId}
                     onChange={(e) =>
                       setForm({ ...form, ownerId: e.target.value })
                     }
                   >
+                    {form.ownerId && !users?.some(u=>u.id===form.ownerId) && <option value={form.ownerId}>Người phụ trách đã chọn</option>}
                     {users
                       ?.filter((u) => u.active)
                       .map((u) => (
@@ -357,7 +376,7 @@ export function SalesPage({
             </div>
             {!customers?.length && (
               <div className="notice">
-                Hãy đóng cửa sổ và thêm khách hàng ở mục Khách hàng trước.
+                Chưa có thông tin phù hợp. Thêm người nhận mới ở trên hoặc đổi từ khóa tìm.
               </div>
             )}
             {!available(form.channel).length && (
@@ -366,7 +385,7 @@ export function SalesPage({
                 Bảng giá.
               </div>
             )}
-            <h3>Sản phẩm</h3>
+            <h3>Sản phẩm</h3><Field label="Tìm sản phẩm trong danh mục"><input placeholder="Tên sản phẩm hoặc mã SKU…" value={productSearch} onChange={e=>setProductSearch(e.target.value)}/><small className="muted">30 kết quả phù hợp cùng các sản phẩm đã chọn.</small></Field>
             <div className="sale-lines">
               {form.lines.map((l: Row, i: number) => (
                 <div className="sale-line" key={i}>
@@ -557,7 +576,7 @@ export function SalesPage({
                   <tr key={l.id}>
                     <td>
                       {l.product_name}
-                      <small className="muted block">{l.sku}</small>
+                      <small className="muted block">{l.sku}</small>{l.lead_days_min!=null&&<small className="muted block">Chuẩn bị: {l.lead_days_min}–{l.lead_days_max} ngày</small>}
                     </td>
                     <td>{l.qty}</td>
                     <td>{money(l.unit_price)}</td>
@@ -607,6 +626,7 @@ export function SalesPage({
             </>
           )}
           <div className="detail-actions">
+            {quote&&detail.record.status==='accepted'&&(manager||settings?.ctvQuotes)&&<button className="secondary" disabled={busy} onClick={async()=>{setBusy(true);setErr('');try{const result=await api('/quotes/'+detail.record.id+'/convert','POST',{version:detail.record.version});setDetail(null);refresh();tell('Đã mở đơn từ báo giá; giá và size đã chốt được giữ nguyên.');launch?.('orders',result.id)}catch(e){setErr((e as Error).message)}finally{setBusy(false)}}}>{detail.orderId?'Mở đơn đã tạo':'Chuyển thành đơn'}</button>}
             {detail.record.status === (quote ? "draft" : "pending") &&
               (!quote || manager || settings?.ctvQuotes) && (
                 <button
@@ -718,6 +738,7 @@ export function SalesPage({
                       }
                     />
                   </Field>
+                  <p className="notice">Chênh lệch so với số đã thu hiện tại được lưu thành một dòng thu hoặc điều chỉnh. Lịch sử luôn được giữ lại.</p>
                   <Field label="Nội dung / mã giao dịch">
                     <input
                       required
@@ -756,6 +777,7 @@ export function SalesPage({
             </form>
           )}
           <ErrorBox error={err} />
+          {!quote && <section className="table-wrap"><h3>Lịch sử thu và điều chỉnh</h3><table><thead><tr><th>Ngày thu</th><th>Số tiền</th><th>Tham chiếu</th><th>Người ghi</th></tr></thead><tbody>{detail.payments?.map((p:Row)=><tr key={p.id}><td>{p.opening_balance ? "Số dư trước nâng cấp" : date(p.occurred_at)}</td><td>{money(p.amount)}</td><td>{p.reference}</td><td>{p.actor_name || "Hệ thống"}</td></tr>)}</tbody></table></section>}
           {!quote && (
             <div className="timeline">
               <h3>Lịch sử đơn hàng</h3>

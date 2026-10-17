@@ -8,17 +8,17 @@ public sealed class ObjectStorage(IConfiguration config, IHttpClientFactory fact
     public async Task Put(string key, byte[] bytes, string contentType)
     {
         if (Local) { await File.WriteAllBytesAsync(LocalPath(key), bytes); return; }
-        using var response = await Send(HttpMethod.Put, key, bytes, contentType); response.EnsureSuccessStatusCode();
+        using var response = await Send(HttpMethod.Put, key, bytes, contentType); Ensure(response);
     }
     public async Task<byte[]> Get(string key)
     {
         if (Local) return await File.ReadAllBytesAsync(LocalPath(key));
-        using var response = await Send(HttpMethod.Get, key, [], null); response.EnsureSuccessStatusCode(); return await response.Content.ReadAsByteArrayAsync();
+        using var response = await Send(HttpMethod.Get, key, [], null); Ensure(response); return await response.Content.ReadAsByteArrayAsync();
     }
     public async Task Delete(string key)
     {
         if (Local) { File.Delete(LocalPath(key)); return; }
-        using var response = await Send(HttpMethod.Delete, key, [], null); response.EnsureSuccessStatusCode();
+        using var response = await Send(HttpMethod.Delete, key, [], null); Ensure(response);
     }
     private bool Local
     {
@@ -48,7 +48,27 @@ public sealed class ObjectStorage(IConfiguration config, IHttpClientFactory fact
         req.Headers.TryAddWithoutValidation("x-amz-date", stamp); req.Headers.TryAddWithoutValidation("x-amz-content-sha256", hash);
         req.Headers.TryAddWithoutValidation("Authorization", $"AWS4-HMAC-SHA256 Credential={access}/{scope}, SignedHeaders={signed}, Signature={Hex(Hmac(signing, toSign))}");
         if (method == HttpMethod.Put) { req.Content = new ByteArrayContent(bytes); req.Content.Headers.ContentType = new(contentType!); }
-        try { return await factory.CreateClient().SendAsync(req); } finally { req.Dispose(); }
+        try { return await factory.CreateClient().SendAsync(req); }
+        catch (HttpRequestException) { throw new AppError(503, "Kho ảnh chưa kết nối được. Vui lòng thử lại hoặc kiểm tra cấu hình dịch vụ."); }
+        catch (TaskCanceledException) { throw new AppError(503, "Kho ảnh phản hồi quá chậm. Vui lòng thử lại."); }
+        finally { req.Dispose(); }
+    }
+    public async Task Probe()
+    {
+        var key = $"connection-check-{Guid.NewGuid():N}.png";
+        byte[] payload = [137, 80, 78, 71, 13, 10, 26, 10];
+        var created = false;
+        try
+        {
+            await Put(key, payload, "image/png"); created = true;
+            Check.That((await Get(key)).SequenceEqual(payload), "Kho ảnh chưa đọc lại đúng dữ liệu.", 503);
+        }
+        finally { if (created) await Delete(key); }
+    }
+    private static void Ensure(HttpResponseMessage response)
+    {
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound) throw new AppError(404, "Không tìm thấy ảnh trong kho lưu trữ.");
+        if (!response.IsSuccessStatusCode) throw new AppError(503, "Chưa kết nối được kho ảnh. Quản lý cần kiểm tra cấu hình và quyền truy cập.");
     }
     private static byte[] Hmac(byte[] key, string value) => HMACSHA256.HashData(key, Encoding.UTF8.GetBytes(value));
     private static string Hex(byte[] bytes) => Convert.ToHexString(bytes).ToLowerInvariant();

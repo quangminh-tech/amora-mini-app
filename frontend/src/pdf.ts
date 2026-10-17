@@ -112,7 +112,7 @@ export async function exportQuote(record: Row, lines: Row[]) {
   tableHead();
   for (const line of lines) {
     const names = wrap(
-      line.product_name + "\n" + line.sku + " · " + line.unit,
+      line.product_name + "\n" + line.sku + " · " + line.unit + (line.lead_days_min!=null ? `\nChuẩn bị: ${line.lead_days_min}–${line.lead_days_max} ngày` : ""),
       240,
       9,
     );

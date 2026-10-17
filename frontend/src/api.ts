@@ -1,3 +1,12 @@
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+  ) {
+    super(message);
+  }
+}
+
 export type User = {
   id: string;
   name: string;
@@ -6,7 +15,7 @@ export type User = {
   mustChangePassword: boolean;
 };
 export type Row = Record<string, any>;
-const base = (import.meta as any).env.VITE_API_URL?.replace(/\/$/, "") || "";
+const base = (import.meta as any).env.VITE_API_URL?.trim().replace(/\/$/, "") || "";
 export const token = () => sessionStorage.getItem("amora-token");
 export async function request(path: string, options: RequestInit = {}) {
   const headers = new Headers(options.headers);
@@ -32,7 +41,7 @@ export async function request(path: string, options: RequestInit = {}) {
       } catch {
         /* Render may return an HTML cold-start response. */
       }
-      throw new Error(message);
+      throw new ApiError(message, res.status);
     }
     if (res.status === 204) return null;
     return res;
@@ -40,6 +49,11 @@ export async function request(path: string, options: RequestInit = {}) {
     if (e instanceof DOMException && e.name === "AbortError")
       throw new Error(
         "Máy chủ đang khởi động hoặc kết nối chậm. Vui lòng thử lại.",
+      );
+    if (e instanceof TypeError)
+      throw new ApiError(
+        "Chưa kết nối được máy chủ. Máy chủ có thể đang khởi động; vui lòng thử lại.",
+        0,
       );
     throw e;
   } finally {
@@ -51,7 +65,13 @@ export const api = async (path: string, method = "GET", data?: unknown) => {
     method,
     ...(data !== undefined ? { body: JSON.stringify(data) } : {}),
   });
-  return r ? r.json() : null;
+  if (!r) return null;
+  if (!r.headers.get("Content-Type")?.includes("application/json"))
+    throw new ApiError(
+      "Máy chủ chưa trả dữ liệu hợp lệ. Vui lòng thử lại; nếu lỗi tiếp tục, báo quản lý kiểm tra cấu hình kết nối.",
+      502,
+    );
+  return r.json();
 };
 export function downloadBlob(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);

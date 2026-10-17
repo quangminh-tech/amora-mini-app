@@ -1,84 +1,70 @@
-# API AMORA Mini
+# API AMORA Studio 3.0
 
-Base: `/api`. JSON camelCase cho request; dữ liệu hàng database trả `snake_case`. Actor đăng nhập trả camelCase. Authorization: `Bearer <opaque token>` cho mọi route trừ login và `/health`.
+Base `/api`, Bearer opaque token. Request camelCase; hàng database trả snake_case. 400 invalid, 401 hết phiên, 403 không quyền, 404 không có, 409 trùng/xung đột, 428 đổi mật khẩu, 429 giới hạn tần suất. `/health` nằm ngoài `/api`, không cần token.
 
-`400`: dữ liệu/quy tắc không hợp lệ; `401`: chưa đăng nhập/hết phiên; `403`: không có quyền; `404`: không tồn tại; `409`: xung đột phiên bản/trùng dữ liệu; `428`: cần đổi mật khẩu; `429`: quá tần suất.
+## Danh mục và sản phẩm
 
-| Method | Route | Quyền / nội dung |
-|---|---|---|
-| GET | `/health` | Kiểm tra SQL, không cần đăng nhập, nằm ngoài `/api` |
-| POST | `/auth/login` | `{email,password}` → token, user |
-| GET | `/auth/me` | Thông tin phiên hiện tại |
-| POST | `/auth/logout` | Thu hồi phiên, 204 |
-| POST | `/auth/password` | `{currentPassword,newPassword}`; thu hồi mọi phiên |
-| GET | `/scents` | Bốn mùi hương chính thức |
-| GET | `/products` | `{products,prices,images}`; CTV chỉ active + retail |
-| POST | `/products` | Quản lý; `{sku,name,scentId?,description,unit,active}` |
-| PUT | `/products/{id}` | Quản lý; giống POST |
-| PUT | `/products/{id}/prices` | Quản lý; `{channel,unitPrice,commissionRate,minQty}` |
-| POST | `/products/{id}/images` | Quản lý; multipart `file`, `caption` tùy chọn |
-| GET | `/images/{id}` | Ảnh private sau kiểm tra đăng nhập và active |
-| DELETE | `/images/{id}` | Quản lý, xóa object và bản ghi |
-| GET | `/customers` | Quản lý toàn bộ; CTV theo owner |
-| POST | `/customers` | `{name,phone,email,address,company}`; owner là người tạo |
-| PUT | `/customers/{id}` | Chủ khách hoặc quản lý |
-| GET | `/orders` | Tối đa 500 đơn mới nhất theo quyền |
-| GET | `/orders/{id}` | `{record,lines,events}` theo quyền |
-| POST | `/orders` | SaleRequest, server tự tính tiền/hoa hồng |
-| PUT | `/orders/{id}` | Chỉ pending, chưa thu tiền; yêu cầu version |
-| POST | `/orders/{id}/status` | `{status,version,reason?}`; CTV chỉ pending→cancelled |
-| POST | `/orders/{id}/payment` | Quản lý; `{paid,version,reference}`; `paid` là tổng lũy kế |
-| GET | `/quotes` | Tối đa 500 báo giá theo quyền |
-| GET | `/quotes/{id}` | `{record,lines,events:[]}` |
-| POST | `/quotes` | SaleRequest, CTV theo setting |
-| PUT | `/quotes/{id}` | Chỉ draft, yêu cầu version, CTV theo setting |
-| POST | `/quotes/{id}/status` | `{status,version}` |
-| GET | `/dashboard` | Tổng hợp theo quyền, múi giờ Việt Nam |
-| GET | `/commissions` | Tối đa 500 khoản theo quyền |
-| POST | `/commissions/{id}/status` | Quản lý; `{status,version,reference?}` |
-| GET | `/settings` | Thông tin doanh nghiệp, không có secret |
-| PUT | `/settings` | Quản lý; BusinessRequest |
-| GET | `/admin/users` | Quản lý; không trả password hash |
-| POST | `/admin/users` | Quản lý; `{email,name,role,password}` |
-| PUT | `/admin/users/{id}` | Quản lý; `{email,name,active}`; role cố định |
-| POST | `/admin/users/{id}/reset-password` | Quản lý; `{password}`, không dùng cho chính mình |
-| GET | `/admin/audit` | Quản lý; 200 thao tác mới nhất |
-| GET | `/admin/backup` | Quản lý; JSON attachment chứa password hash, không sessions |
+- GET `/directories/{kind}`: kind product-categories/customer-groups/scents; CTV chỉ active.
+- POST, PUT `/directories/{kind}[/{id}]`: quản lý. `{name,code,sortOrder,active,version}`; scents dùng thêm meaning/topNotes/middleNotes/baseNotes/ritual, không cần code.
+- GET `/models?page=1&pageSize=25&search=&category=`: mẫu + nhóm và số SKU.
+- POST/PUT `/models[/{id}]`: `{code,name,categoryId,description,active,version}`.
+- GET `/products?page=1&pageSize=25&search=&category=&modelId=&status=`: `{products,prices,images,total,page,pageSize}`. category là mã nhóm; status active/inactive; includeIds tối đa 50 UUID để giữ dòng đang chọn.
+- POST/PUT `/products[/{id}]`: `{sku,modelId,sizeLabel,scentId?,unit,description,active,version,leadDaysMin,leadDaysMax}`. sizeLabel bắt buộc. PUT cần version; SKU mới version=0.
+- PUT `/products/{id}/prices`: `{channel,unitPrice,minQty,commissionRate,version}`; channel retail/wholesale/b2b. Giá mới version=0.
+- POST `/products/{id}/images`: multipart file (PNG/JPEG/WebP, ≤5MB); GET/DELETE `/images/{id}`.
+- GET `/scents`: danh sách mùi theo quyền.
 
-## SaleRequest
+## Khách, tài khoản và phân trang
+
+- GET `/customers?page=1&search=&group=&ownerId=`: group là mã nhóm khách.
+- POST/PUT `/customers[/{id}]`: `{name,phone,email,address,company,note,groupId,version}`. Owner khi tạo là người đăng nhập.
+- GET `/customers/duplicates?phone=`: tối đa 10 hồ sơ có quyền xem, không lộ hồ sơ CTV khác.
+- GET `/admin/users?page=1&search=&status=&role=`; status active/inactive, role ctv/manager.
+- POST `/admin/users`: `{email,name,role,password}`; PUT `/{id}`: `{email,name,active,version}`; POST `/{id}/reset-password`: `{password}`.
+- GET/PUT `/admin/account-limits`: `{managers,ctvs,version}`; GET có active_managers/active_ctvs.
+
+Các danh sách customers/models/users/orders/quotes/commissions khi gửi page trả `{items,total,page,pageSize}`. Tối đa 100 dòng/trang. Không có page trả mảng trang đầu (mặc định 25), để tương thích client cũ; không dùng để export toàn bộ.
+
+## Chứng từ
+
+- GET `/orders` hoặc `/quotes`: page/search/status/ownerId.
+- GET `/{type}/{id}`: `{record,lines,events,payments,orderId}`; orderId chỉ có ý nghĩa khi xem quote đã chuyển đơn.
+- POST/PUT `/{type}[/{id}]`:
 
 ```json
-{
-  "customerId": "UUID",
-  "channel": "retail",
-  "shipping": 25000,
-  "note": "Giao giờ hành chính",
-  "lines": [{"productId":"UUID", "qty":2, "unitPrice":null}],
-  "version": null,
-  "ownerId": null,
-  "validUntil": "2026-12-31",
-  "terms": "Điều kiện báo giá..."
-}
+{"customerId":"UUID","channel":"retail","shipping":0,"note":"","lines":[{"productId":"SKU_UUID","qty":2,"unitPrice":null}],"version":null,"ownerId":null,"validUntil":"2026-12-31","terms":null}
 ```
 
-- `unitPrice=null`: lấy giá hiện hành. CTV không được gửi giá khác bảng retail. Quản lý có thể nhập đơn giá riêng, nhưng sản phẩm vẫn phải có giá cấu hình cho kênh và đáp ứng MOQ.
-- `ownerId`: chỉ quản lý được gán khi tạo mới; mặc định là người tạo. Sửa đơn không đổi người hưởng hoa hồng.
-- `version`: bắt buộc đúng bản hiện tại khi PUT. POST mới dùng null.
-- `validUntil`, `terms`: dùng cho báo giá. Mặc định 14 ngày và điều kiện trong settings.
-- Không nhận tiền hàng, tỷ lệ hoa hồng, trạng thái hoặc owner từ CTV để ghi trực tiếp.
+productId tham chiếu products (SKU), không phải mẫu. Quản lý chọn owner khi tạo và giá thỏa thuận; CTV chỉ giá retail. Server kiểm tra MOQ và tính tiền. PUT cần version và chỉ nháp/đơn pending chưa thu.
 
-## BusinessRequest
+- POST `/quotes/{id}/status`: `{status,version}`.
+- POST `/quotes/{id}/convert`: `{version}`; accepted/còn hạn, trả `{id,alreadyConverted}`. Lặp lại trả cùng đơn; không lấy giá mới.
+- POST `/orders/{id}/status`: `{status,version,reason?}`.
+- POST `/orders/{id}/payment`: `{paid,version,reference,occurredAt?}`. paid là tổng đã thu lũy kế, chênh lệch được thêm ledger.
+- GET `/commissions`, `/commissions/summary`; POST `/commissions/{id}/status`: `{status,version,reference?}`.
 
-```json
-{
- "name":"AMORA STUDIO", "tagline":"Simple Moments. Deep Calm.",
- "phone":"", "email":"", "address":"", "taxCode":"", "bank":"",
- "quoteTerms":"Thời gian dự kiến 7–10 ngày...", "ctvQuotes":true
-}
-```
+## Tổng quan và hệ thống
 
-## Dữ liệu trả về
+- GET `/overview?from=YYYY-MM-DD&to=YYYY-MM-DD&ownerId=`: quotes/live/orders/commissions/recent/team/missingPrices/activeCtvs. Khoảng ≤366 ngày Việt Nam; CTV không có team.
+- GET `/dashboard`: giữ endpoint tổng hợp v2 để tương thích, giao diện mới dùng overview.
+- GET/PUT `/settings`: business; PUT cần version.
+- GET `/admin/readiness`, POST `/admin/storage-check`, GET `/admin/audit`, GET `/admin/backup`.
+- POST `/auth/login`, GET `/auth/me`, POST `/auth/password`, POST `/auth/logout`.
 
-UUID dạng string; số tiền là number nguyên đồng, giới hạn tổng chứng từ dưới 10^14 để còn trong vùng số nguyên an toàn JavaScript. Timestamp UTC ISO; giao diện hiển thị Asia/Ho_Chi_Minh. `customer_snapshot`, `seller_snapshot`, `detail` có thể là JSON string từ Npgsql/Dapper; frontend dùng `parse` để chuẩn hóa.
+## Excel
 
-PDF được xuất trực tiếp từ dữ liệu báo giá đã lưu trên trình duyệt. Không có endpoint xuất PDF server hoặc dịch vụ bên ngoài.
+Kinds: product-categories, customer-groups, scents, models, products, prices, customers, users.
+
+- GET `/transfers/{kind}/template`: `.xlsx` tiêu đề tiếng Việt.
+- GET `/transfers/{kind}/export`: `.xlsx`, tối đa 20.000 dòng; products hỗ trợ search/category/status, prices search/category, customers search/group, users search/status/role. models và danh mục xuất toàn bộ, chưa áp lọc.
+- POST `/transfers/{kind}/preview`: multipart file + mode=create/update. Trả `{id,valid,rows,columns,expiresInMinutes}`. Dòng có row/key/action/error/warning; preview không có password.
+- POST `/transfers/{kind}/{id}/commit`: trả `{count,temporaryAccounts}`. Chỉ actor đã tạo batch, chưa hết hạn/chưa committed. Nếu bất kỳ dòng lỗi, rollback toàn bộ.
+
+CTV chỉ import customers; được export products/prices retail và customers thuộc quyền. Mọi import khác và templates tương ứng yêu cầu manager. Giới hạn và quy tắc ô trống/[XÓA] xem README.
+
+
+## Xóa mẫu và SKU
+
+DELETE `/products/{id}?version=N`: quản lý, chỉ SKU chưa có quote_lines/order_lines. Xóa metadata ảnh và giá trong cùng transaction, dọn object ảnh sau commit. Trả `{message,pendingImages}`. Có ảnh chưa dọn được thì ghi nhật ký và báo số còn lại.
+
+DELETE `/models/{id}?version=N`: quản lý, chỉ mẫu không còn SKU, trả 204. Xung đột phiên bản hoặc có liên kết trả 409; không tìm thấy trả 404. Mọi thao tác có audit.
