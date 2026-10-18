@@ -22,7 +22,7 @@ with psycopg.connect(url) as conn:
             cur.execute(sql.SQL('SELECT count(*) FROM {}').format(sql.Identifier(table)))
             assert cur.fetchone()[0]==len(rows),table
         cur.execute('SELECT count(*) FROM sessions');assert cur.fetchone()[0]==0
-        cur.execute('SELECT count(*) FROM schema_migrations');assert cur.fetchone()[0]==3
+        cur.execute('SELECT count(*) FROM schema_migrations');assert cur.fetchone()[0]==len(list((root/'database/migrations').glob('*.sql')))
 result=subprocess.run([sys.executable,str(root/'scripts/restore.py'),str(backup),'--execute'],env=env,capture_output=True,text=True)
 assert result.returncode!=0 and 'từ chối ghi đè' in result.stderr,'Must reject restore over existing data'
 print('PASS: JSON restore, exact row counts for all 19 tables, no sessions, migration ledger and refusal to overwrite existing data.')

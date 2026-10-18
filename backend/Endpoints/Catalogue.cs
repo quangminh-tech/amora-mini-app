@@ -13,7 +13,7 @@ public static class Catalogue
             var q=ctx.Request.Query;int Number(string key,int fallback,int max){if(!q.ContainsKey(key))return fallback;Check.That(int.TryParse(q[key],out var n)&&n>0&&n<=max,"Trang không hợp lệ.");return n;}
             var page=Number("page",1,1000000);var pageSize=Number("pageSize",100,100);var manager=ctx.User().Manager;
             var extra=new List<Guid>();foreach(var raw in q["includeIds"].ToString().Split(',',StringSplitOptions.RemoveEmptyEntries)){Check.That(Guid.TryParse(raw,out var id),"SKU không hợp lệ.");extra.Add(id);}Check.That(extra.Count<=50,"Tối đa 50 SKU đã chọn.");
-            var filter="(@manager OR ("+Visible+")) AND (@category='' OR cat.code=@category) AND (@model='' OR m.id::text=@model) AND (@status='' OR (@status='active' AND p.active) OR (@status='inactive' AND NOT p.active)) AND (p.name ILIKE @search OR p.sku ILIKE @search OR m.name ILIKE @search OR p.size_label ILIKE @search OR s.name ILIKE @search)";
+            var filter="(@manager OR ("+Visible+")) AND (@category='' OR cat.code=@category) AND (@model='' OR m.id::text=@model) AND (@status='' OR (@status='active' AND p.active) OR (@status='inactive' AND NOT p.active)) AND (p.name ILIKE @search OR p.sku ILIKE @search OR m.name ILIKE @search OR p.size_label ILIKE @search OR p.color_label ILIKE @search OR s.name ILIKE @search)";
             var args=new{manager,category=Check.Text(q["category"],40),model=Check.Text(q["modelId"],40),status=Check.Text(q["status"],16),search="%"+Check.Text(q["search"],180).Replace("\\","\\\\").Replace("%","\\%").Replace("_","\\_")+"%",limit=pageSize,offset=(page-1)*pageSize};
             await using var c=await db.Open();await using var tx=await c.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead);
             var total=await c.ExecuteScalarAsync<long>("SELECT count(*) "+ProductFrom+" WHERE "+filter,args,tx);
@@ -24,6 +24,18 @@ public static class Catalogue
             var prices=await c.QueryAsync("SELECT * FROM prices WHERE product_id=ANY(@ids) AND (@manager OR channel='retail')",new{ids,manager},tx);
             var images=await c.QueryAsync("SELECT id,product_id,caption FROM product_images WHERE product_id=ANY(@ids) ORDER BY created_at,id",new{ids},tx);
             await tx.CommitAsync();return Results.Ok(new{products,prices,images,total,page,pageSize});
+        });
+        app.MapGet("/api/products/variant-options",async(HttpContext ctx,Db db)=>{ctx.Manager();await using var c=await db.Open();return Results.Ok(new{sizes=await c.QueryAsync<string>("SELECT DISTINCT size_label FROM products WHERE size_label<>'' ORDER BY size_label LIMIT 200"),colors=await c.QueryAsync<string>("SELECT DISTINCT color_label FROM products WHERE color_label<>'' ORDER BY color_label LIMIT 200")});});
+        app.MapPost("/api/products/sku-preview",async(ProductRequest r,HttpContext ctx,Db db)=>{ctx.Manager();await using var c=await db.Open();await using var tx=await c.BeginTransactionAsync();var id=await SaveProduct(c,tx,null,r with{Sku=""});var sku=await c.ExecuteScalarAsync<string>("SELECT sku FROM products WHERE id=@id",new{id},tx);await tx.RollbackAsync();return Results.Ok(new{sku});});
+        app.MapPost("/api/products/batch",async(VariantBatch r,HttpContext ctx,Db db)=>{
+            ctx.Manager();Check.That(r.Items is not null && r.Items.Length is >0 and <=100,"Mỗi lần tạo từ 1 đến 100 SKU.");
+            await using var c=await db.Open();await using var tx=await c.BeginTransactionAsync();var items=new List<object>();
+            foreach(var item in r.Items!){Check.That(item.Product is not null,"Thiếu thông tin phiên bản.");var id=await SaveProduct(c,tx,null,item.Product! with{Sku=""});
+                if(item.Retail is not null){Check.That(item.Retail.Channel=="retail","Bảng tạo nhanh chỉ nhận giá lẻ.");await SavePrice(c,tx,id,item.Retail with{Version=0});}
+                var sku=await c.ExecuteScalarAsync<string>("SELECT sku FROM products WHERE id=@id",new{id},tx);items.Add(new{id,sku});
+                await db.Audit(c,tx,ctx.User().Id,"product_created",id,new{sku,batch=true});
+            }
+            await tx.CommitAsync();return Results.Ok(new{count=items.Count,items});
         });
         app.MapPost("/api/products",async(ProductRequest r,HttpContext ctx,Db db)=>{ctx.Manager();await using var c=await db.Open();await using var tx=await c.BeginTransactionAsync();var id=await SaveProduct(c,tx,null,r);await db.Audit(c,tx,ctx.User().Id,"product_created",id);await tx.CommitAsync();return Results.Ok(new{id});});
         app.MapPut("/api/products/{id:guid}",async(Guid id,ProductRequest r,HttpContext ctx,Db db)=>{ctx.Manager();await using var c=await db.Open();await using var tx=await c.BeginTransactionAsync();await SaveProduct(c,tx,id,r);await db.Audit(c,tx,ctx.User().Id,"product_updated",id);await tx.CommitAsync();return Results.NoContent();});
@@ -68,16 +80,23 @@ public static class Catalogue
         });
     }
     public static async Task<Guid> SaveProduct(NpgsqlConnection c,NpgsqlTransaction tx,Guid? existing,ProductRequest r){
-        var sku=Check.Text(r.Sku,50,true).ToUpperInvariant();var size=Check.Text(r.SizeLabel,100,true);var unit=Check.Text(r.Unit,30,true);var description=Check.Text(r.Description,5000);
+        await c.ExecuteAsync("SELECT pg_advisory_xact_lock(71352025)",transaction:tx);
+        var sku=Check.Text(r.Sku,50,existing is not null).ToUpperInvariant();var color=Check.Text(r.ColorLabel,80);var size=Check.Text(r.SizeLabel,100,true);var unit=Check.Text(r.Unit,30,true);var description=Check.Text(r.Description,5000);
         Check.That(r.LeadDaysMin>=0&&r.LeadDaysMax>=r.LeadDaysMin&&r.LeadDaysMax<=365,"Thời gian chuẩn bị 0–365 ngày; số tối đa không nhỏ hơn tối thiểu.");
-        var model=await c.QuerySingleOrDefaultAsync("SELECT m.name,cat.name AS category FROM product_models m JOIN product_categories cat ON cat.id=m.category_id WHERE m.id=@ModelId AND m.active AND cat.active FOR SHARE OF m,cat",new{r.ModelId},tx);Check.That(model is not null,"Chọn mẫu sản phẩm và nhóm đang sử dụng.");
+        var model=await c.QuerySingleOrDefaultAsync("SELECT m.name,m.code,cat.name AS category FROM product_models m JOIN product_categories cat ON cat.id=m.category_id WHERE m.id=@ModelId AND m.active AND cat.active FOR SHARE OF m,cat",new{r.ModelId},tx);Check.That(model is not null,"Chọn mẫu sản phẩm và nhóm đang sử dụng.");
         string scent="";if(r.ScentId is not null){scent=await c.ExecuteScalarAsync<string>("SELECT name FROM scents WHERE id=@ScentId AND active",new{r.ScentId},tx)??"";Check.That(scent!="","Mùi hương không hợp lệ hoặc đã ngừng sử dụng.");}
-        var name=Check.Text(string.Join(" · ",new[]{(string)model!.name,scent,size}.Where(x=>x!="").Distinct()),180,true);var id=existing??Guid.NewGuid();
+        var name=Check.Text(string.Join(" · ",new[]{(string)model!.name,scent,size,color}.Where(x=>x!="").Distinct()),180,true);var id=existing??Guid.NewGuid();
+        if(sku.Length==0){
+            var stem=VariantCodes.Build((string)model!.code,scent,size,color);sku=stem;var suffix=1;
+            while(await c.ExecuteScalarAsync<bool>("SELECT EXISTS(SELECT 1 FROM products WHERE lower(btrim(sku))=lower(@sku))",new{sku},tx)){
+                suffix++;var tail="-"+suffix;sku=stem[..Math.Min(stem.Length,50-tail.Length)]+tail;
+            }
+        }
         Check.That(!await c.ExecuteScalarAsync<bool>("SELECT EXISTS(SELECT 1 FROM products WHERE id<>@id AND lower(btrim(sku))=lower(@sku))",new{id,sku},tx),"SKU đã tồn tại.",409);
-        Check.That(!await c.ExecuteScalarAsync<bool>("SELECT EXISTS(SELECT 1 FROM products WHERE id<>@id AND model_id=@ModelId AND scent_id IS NOT DISTINCT FROM @ScentId::uuid AND lower(btrim(size_label))=lower(@size))",new{id,r.ModelId,r.ScentId,size},tx),"Mẫu, mùi và size này đã có SKU.",409);
-        var args=new{id,sku,name,r.ModelId,r.ScentId,description,unit,r.Active,r.Version,size,category=(string)model.category,r.LeadDaysMin,r.LeadDaysMax};
-        if(existing is null)await c.ExecuteAsync("INSERT INTO products(id,sku,name,model_id,scent_id,size_label,description,unit,active,category,lead_days_min,lead_days_max) VALUES(@id,@sku,@name,@ModelId,@ScentId,@size,@description,@unit,@Active,@category,@LeadDaysMin,@LeadDaysMax)",args,tx);
-        else Check.That(await c.ExecuteAsync("UPDATE products SET sku=@sku,name=@name,model_id=@ModelId,scent_id=@ScentId,size_label=@size,description=@description,unit=@unit,active=@Active,category=@category,lead_days_min=@LeadDaysMin,lead_days_max=@LeadDaysMax,version=version+1 WHERE id=@id AND version=@Version",args,tx)==1,"SKU đã thay đổi. Hãy tải lại.",409);
+        Check.That(!await c.ExecuteScalarAsync<bool>("SELECT EXISTS(SELECT 1 FROM products WHERE id<>@id AND model_id=@ModelId AND scent_id IS NOT DISTINCT FROM @ScentId::uuid AND lower(btrim(size_label))=lower(@size) AND lower(btrim(color_label))=lower(@color))",new{id,r.ModelId,r.ScentId,size,color},tx),"Mẫu, mùi, size và màu này đã có SKU.",409);
+        var args=new{id,sku,name,r.ModelId,r.ScentId,description,unit,r.Active,r.Version,size,color,category=(string)model.category,r.LeadDaysMin,r.LeadDaysMax};
+        if(existing is null)await c.ExecuteAsync("INSERT INTO products(id,sku,name,model_id,scent_id,size_label,color_label,description,unit,active,category,lead_days_min,lead_days_max) VALUES(@id,@sku,@name,@ModelId,@ScentId,@size,@color,@description,@unit,@Active,@category,@LeadDaysMin,@LeadDaysMax)",args,tx);
+        else Check.That(await c.ExecuteAsync("UPDATE products SET sku=@sku,name=@name,model_id=@ModelId,scent_id=@ScentId,size_label=@size,color_label=@color,description=@description,unit=@unit,active=@Active,category=@category,lead_days_min=@LeadDaysMin,lead_days_max=@LeadDaysMax,version=version+1 WHERE id=@id AND version=@Version",args,tx)==1,"SKU đã thay đổi. Hãy tải lại.",409);
         return id;
     }
     public static async Task SavePrice(NpgsqlConnection c,NpgsqlTransaction tx,Guid id,PriceRequest r){
@@ -89,5 +108,8 @@ public static class Catalogue
         await c.ExecuteAsync("INSERT INTO prices(id,product_id,channel,unit_price,commission_rate,min_qty) VALUES(@pid,@id,@Channel,@UnitPrice,@CommissionRate,@MinQty) ON CONFLICT(product_id,channel) DO UPDATE SET unit_price=excluded.unit_price,commission_rate=excluded.commission_rate,min_qty=excluded.min_qty,updated_at=now(),version=prices.version+1",new{pid=Guid.NewGuid(),id,r.Channel,r.UnitPrice,r.CommissionRate,r.MinQty},tx);
     }
 }
-public record ProductRequest(string Sku,Guid ModelId,string SizeLabel,Guid? ScentId=null,string Description="",string Unit="lọ",bool Active=true,int Version=0,int LeadDaysMin=7,int LeadDaysMax=10);
+public record ProductRequest(string Sku,Guid ModelId,string SizeLabel,Guid? ScentId=null,string Description="",string Unit="lọ",bool Active=true,int Version=0,int LeadDaysMin=7,int LeadDaysMax=10,string ColorLabel="");
 public record PriceRequest(string Channel,decimal UnitPrice,decimal CommissionRate,int MinQty,int Version=0);
+
+public record VariantBatch(VariantBatchItem[] Items);
+public record VariantBatchItem(ProductRequest Product,PriceRequest? Retail=null);

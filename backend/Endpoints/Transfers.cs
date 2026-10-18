@@ -10,12 +10,12 @@ public static class Transfers
         ["customer-groups"]=["code","name","sort_order","active","id","version"],
         ["scents"]=["name","meaning","top_notes","middle_notes","base_notes","ritual","active","id","version"],
         ["models"]=["code","name","category_code","description","active","id","version"],
-        ["products"]=["sku","model_code","scent_name","size_label","unit","description","lead_days_min","lead_days_max","active","id","version"],
+        ["products"]=["sku","model_code","scent_name","size_label","color_label","unit","description","lead_days_min","lead_days_max","active","id","version"],
         ["prices"]=["sku","channel","unit_price","min_qty","commission_rate","version"],
         ["customers"]=["name","phone","email","group_code","company","address","note","id","version"],
         ["users"]=["name","email","role","active","id","version"]
     };
-    static readonly Dictionary<string,string> Labels=new(){["code"]="Mã",["name"]="Tên",["sort_order"]="Thứ tự",["active"]="Sử dụng",["id"]="ID",["version"]="Phiên bản",["meaning"]="Ý nghĩa",["top_notes"]="Hương đầu",["middle_notes"]="Hương giữa",["base_notes"]="Hương cuối",["ritual"]="Vai trò ritual",["category_code"]="Mã nhóm sản phẩm",["description"]="Mô tả",["sku"]="SKU",["model_code"]="Mã mẫu",["scent_name"]="Tên mùi",["size_label"]="Size / quy cách",["unit"]="Đơn vị",["lead_days_min"]="Số ngày tối thiểu",["lead_days_max"]="Số ngày tối đa",["channel"]="Kênh giá",["unit_price"]="Đơn giá",["min_qty"]="MOQ",["commission_rate"]="Hoa hồng %",["phone"]="Điện thoại",["email"]="Email",["group_code"]="Mã nhóm khách",["company"]="Công ty",["address"]="Địa chỉ",["note"]="Ghi chú",["role"]="Vai trò"};
+    static readonly Dictionary<string,string> Labels=new(){["code"]="Mã",["name"]="Tên",["sort_order"]="Thứ tự",["active"]="Sử dụng",["id"]="ID",["version"]="Phiên bản",["meaning"]="Ý nghĩa",["top_notes"]="Hương đầu",["middle_notes"]="Hương giữa",["base_notes"]="Hương cuối",["ritual"]="Vai trò ritual",["category_code"]="Mã nhóm sản phẩm",["description"]="Mô tả",["sku"]="SKU",["model_code"]="Mã mẫu",["scent_name"]="Tên mùi",["size_label"]="Size / quy cách",["color_label"]="Màu cốc",["unit"]="Đơn vị",["lead_days_min"]="Số ngày tối thiểu",["lead_days_max"]="Số ngày tối đa",["channel"]="Kênh giá",["unit_price"]="Đơn giá",["min_qty"]="MOQ",["commission_rate"]="Hoa hồng %",["phone"]="Điện thoại",["email"]="Email",["group_code"]="Mã nhóm khách",["company"]="Công ty",["address"]="Địa chỉ",["note"]="Ghi chú",["role"]="Vai trò"};
     static void Access(string kind,HttpContext ctx){Check.That(Columns.ContainsKey(kind),"Loại danh sách không hợp lệ.",404);if(kind!="customers" && kind!="products" && kind!="prices")ctx.Manager();}
     public static void MapTransfers(this WebApplication app){
         app.MapGet("/api/transfers/{kind}/template",(string kind,HttpContext ctx)=>{Access(kind,ctx);if(kind!="customers")ctx.Manager();return Results.File(Workbook.Write(new[]{Columns[kind].Select(x=>Labels[x]).ToArray()}),"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",$"amora-mau-{kind}.xlsx");});
@@ -23,8 +23,8 @@ public static class Transfers
             Access(kind,ctx);await using var c=await db.Open();var manager=ctx.User().Manager;var uid=ctx.User().Id;var search="%"+Check.Text(ctx.Request.Query["search"],180).Replace("\\","\\\\").Replace("%","\\%").Replace("_","\\_")+"%";
             var category=Check.Text(ctx.Request.Query["category"],40);var group=Check.Text(ctx.Request.Query["group"],40);var status=Check.Text(ctx.Request.Query["status"],16);var role=Check.Text(ctx.Request.Query["role"],16);
             string sql=kind switch{
-                "products"=>"SELECT p.*,m.code AS model_code,s.name AS scent_name "+Catalogue.ProductFrom+" WHERE (@manager OR ("+Catalogue.Visible+")) AND (@category='' OR cat.code=@category) AND (@status='' OR (@status='active' AND p.active) OR (@status='inactive' AND NOT p.active)) AND (p.name ILIKE @search OR p.sku ILIKE @search OR m.name ILIKE @search OR p.size_label ILIKE @search OR s.name ILIKE @search) ORDER BY p.sku",
-                "prices"=>"SELECT pr.*,p.sku FROM prices pr JOIN products p ON p.id=pr.product_id JOIN product_models m ON m.id=p.model_id JOIN product_categories cat ON cat.id=m.category_id LEFT JOIN scents s ON s.id=p.scent_id WHERE (@manager OR (pr.channel='retail' AND "+Catalogue.Visible+")) AND (@category='' OR cat.code=@category) AND (p.name ILIKE @search OR p.sku ILIKE @search OR m.name ILIKE @search OR p.size_label ILIKE @search) ORDER BY p.sku,pr.channel",
+                "products"=>"SELECT p.*,m.code AS model_code,s.name AS scent_name "+Catalogue.ProductFrom+" WHERE (@manager OR ("+Catalogue.Visible+")) AND (@category='' OR cat.code=@category) AND (@status='' OR (@status='active' AND p.active) OR (@status='inactive' AND NOT p.active)) AND (p.name ILIKE @search OR p.sku ILIKE @search OR m.name ILIKE @search OR p.size_label ILIKE @search OR p.color_label ILIKE @search OR s.name ILIKE @search) ORDER BY p.sku",
+                "prices"=>"SELECT pr.*,p.sku FROM prices pr JOIN products p ON p.id=pr.product_id JOIN product_models m ON m.id=p.model_id JOIN product_categories cat ON cat.id=m.category_id LEFT JOIN scents s ON s.id=p.scent_id WHERE (@manager OR (pr.channel='retail' AND "+Catalogue.Visible+")) AND (@category='' OR cat.code=@category) AND (p.name ILIKE @search OR p.sku ILIKE @search OR m.name ILIKE @search OR p.size_label ILIKE @search OR p.color_label ILIKE @search) ORDER BY p.sku,pr.channel",
                 "customers"=>"SELECT c.*,g.code AS group_code FROM customers c JOIN customer_groups g ON g.id=c.group_id WHERE (@manager OR c.owner_id=@uid) AND (@group='' OR g.code=@group) AND (c.name ILIKE @search OR c.phone ILIKE @search OR c.email ILIKE @search OR c.company ILIKE @search) ORDER BY c.name,c.id",
                 "users"=>"SELECT id,name,email,role,active,version FROM users WHERE (name ILIKE @search OR email ILIKE @search) AND (@role='' OR role=@role) AND (@status='' OR (@status='active' AND active) OR (@status='inactive' AND NOT active)) ORDER BY name,id",
                 "models"=>"SELECT m.*,c.code AS category_code FROM product_models m JOIN product_categories c ON c.id=m.category_id ORDER BY m.code",
@@ -62,7 +62,7 @@ public static class Transfers
         foreach(var row in rows){number++;var key=kind=="products"||kind=="prices"?Get(row,"sku")+(kind=="prices"?"/"+Get(row,"channel"):""):kind=="users"?Get(row,"email"):kind=="customers"?Get(row,"id",number.ToString()):Get(row,"code",Get(row,"name"));
             string error="",warning="",password="";await c.ExecuteAsync("SAVEPOINT import_row",transaction:tx);
             try{
-                Check.That(seen.Add(key),"Khóa nhận diện bị trùng trong file.");Guid? id=null;
+                Check.That(seen.Add(mode=="create"&&kind=="products"&&key==""?"auto-row-"+number:key),"Khóa nhận diện bị trùng trong file.");Guid? id=null;
                 if(mode=="update"&&kind!="prices"){Check.That(Guid.TryParse(Get(row,"id"),out var parsed),"Cập nhật cần ID từ file xuất.");id=parsed;Check.That(Int(row,"version")>0,"Cập nhật cần Phiên bản từ file xuất.");}
                 if(mode=="update"){
                     string existingSql=kind switch{
@@ -79,7 +79,7 @@ public static class Transfers
                         if(keyName is "id" or "version")continue;
                         if(row.TryGetValue("_clear_"+keyName,out var clear)&&clear=="1")row[keyName]="";
                         else if(Get(row,keyName)==""&&prior.TryGetValue(keyName,out var priorValue))row[keyName]=Convert.ToString(priorValue,CultureInfo.InvariantCulture)??"";
-                        else if(Get(row,keyName)=="[XÓA]"){Check.That(new[]{"phone","email","company","address","note","description","scent_name","meaning","top_notes","middle_notes","base_notes","ritual"}.Contains(keyName),"Trường "+Labels[keyName]+" không được để trống.");row[keyName]="";row["_clear_"+keyName]="1";}
+                        else if(Get(row,keyName)=="[XÓA]"){Check.That(new[]{"phone","email","company","address","note","description","scent_name","color_label","meaning","top_notes","middle_notes","base_notes","ritual"}.Contains(keyName),"Trường "+Labels[keyName]+" không được để trống.");row[keyName]="";row["_clear_"+keyName]="1";}
                     }
                 }
                 var version=Int(row,"version");var active=Active(row);
@@ -87,7 +87,7 @@ public static class Transfers
                 else if(kind=="models"){var category=await Lookup(c,tx,"product_categories","code",Get(row,"category_code"));await Directories.SaveModel(c,tx,id,new(Get(row,"code"),Get(row,"name"),category,Get(row,"description"),active,version));}
                 else if(kind=="products"){
                     var model=await Lookup(c,tx,"product_models","code",Get(row,"model_code"));Guid? scent=Get(row,"scent_name")==""?null:await Lookup(c,tx,"scents","name",Get(row,"scent_name"));
-                    await Catalogue.SaveProduct(c,tx,id,new(Get(row,"sku"),model,Get(row,"size_label"),scent,Get(row,"description"),Get(row,"unit","lọ"),active,version,Int(row,"lead_days_min",7),Int(row,"lead_days_max",10)));
+                    await Catalogue.SaveProduct(c,tx,id,new(Get(row,"sku"),model,Get(row,"size_label"),scent,Get(row,"description"),Get(row,"unit","lọ"),active,version,Int(row,"lead_days_min",7),Int(row,"lead_days_max",10),Get(row,"color_label")));
                 }else if(kind=="prices"){
                     var product=await Lookup(c,tx,"products","sku",Get(row,"sku"));var existing=await c.ExecuteScalarAsync<int?>("SELECT version FROM prices WHERE product_id=@product AND channel=@channel",new{product,channel=Get(row,"channel")},tx);
                     Check.That(mode=="create"?existing is null:existing is not null,"Chế độ nhập không khớp giá đã có/chưa có.");await Catalogue.SavePrice(c,tx,product,new(Get(row,"channel"),Dec(row,"unit_price"),Dec(row,"commission_rate"),Int(row,"min_qty",1),mode=="create"?0:version));
