@@ -1,4 +1,5 @@
-import { PDFDocument, rgb, PDFFont, PDFPage } from "pdf-lib";
+import { renderDocument } from "./documentTemplates";
+import { PDFDocument, rgb, PDFFont, PDFPage, PDFImage } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import { Row, money, date, parse, downloadBlob } from "./api";
 export async function exportQuote(record: Row, lines: Row[]) {
@@ -9,6 +10,14 @@ export async function exportQuote(record: Row, lines: Row[]) {
   const font = await doc.embedFont(await response.arrayBuffer(), {
     subset: true,
   });
+  let logo: PDFImage | undefined;
+  try {
+    const response = await fetch("/brand/amora-logo.png");
+    if (response.ok) logo = await doc.embedPng(await response.arrayBuffer());
+  } catch {
+    /* Keep seller text if logo cannot be loaded. */
+  }
+  const document = renderDocument(record.document_snapshot, record);
   const seller = parse(record.seller_snapshot);
   const customer = parse(record.customer_snapshot);
   let page!: PDFPage;
@@ -29,11 +38,15 @@ export async function exportQuote(record: Row, lines: Row[]) {
     page = doc.addPage([width, 841.89]);
     pageCount++;
     y = 792;
-    text(seller.name || "AMORA STUDIO", margin, y, 19);
-    text(record.code, 420, y, 9, muted);
-    y -= 24;
-    text(seller.tagline || "Simple Moments. Deep Calm.", margin, y, 9, muted);
-    y -= 30;
+    if (logo)
+      page.drawImage(logo, { x: margin, y: y - 41, width: 114, height: 41 });
+    else text("AMORA", margin, y - 20, 20);
+    wrap(seller.name || "AMORA STUDIO", 365, 12)
+      .slice(0, 2)
+      .forEach((line, i) => text(line, 170, y - i * 16, 12));
+    text(seller.tagline || "Simple Moments. Deep Calm.", 170, y - 37, 8, muted);
+    text(record.code, 170, y - 55, 9, muted);
+    y -= 84;
   }
   function ensure(height: number) {
     if (y - height < 65) newPage();
@@ -96,9 +109,21 @@ export async function exportQuote(record: Row, lines: Row[]) {
     y -= 36;
   }
   newPage();
-  block("BÁO GIÁ SẢN PHẨM", 18);
+  for (const value of [
+    seller.taxCode && "MST: " + seller.taxCode,
+    seller.address,
+    seller.phone && "Điện thoại: " + seller.phone,
+    seller.email,
+  ].filter(Boolean))
+    block(value, 9);
   y -= 12;
-  block("Kính gửi: " + customer.name);
+  block(document.title, 16);
+  if (document.intro) {
+    y -= 12;
+    block(document.intro);
+  }
+  y -= 12;
+  block("Khách hàng: " + customer.name);
   if (customer.company) block(customer.company);
   if (customer.phone) block("Điện thoại: " + customer.phone);
   if (customer.address) block("Địa chỉ: " + customer.address);
@@ -112,7 +137,14 @@ export async function exportQuote(record: Row, lines: Row[]) {
   tableHead();
   for (const line of lines) {
     const names = wrap(
-      line.product_name + "\n" + line.sku + " · " + line.unit + (line.lead_days_min!=null ? `\nChuẩn bị: ${line.lead_days_min}–${line.lead_days_max} ngày` : ""),
+      line.product_name +
+        "\n" +
+        line.sku +
+        " · " +
+        line.unit +
+        (line.lead_days_min != null
+          ? `\nChuẩn bị: ${line.lead_days_min}–${line.lead_days_max} ngày`
+          : ""),
       240,
       9,
     );
@@ -147,8 +179,9 @@ export async function exportQuote(record: Row, lines: Row[]) {
     block(record.note);
     y -= 8;
   }
-  block("Điều kiện báo giá", 11);
-  block(record.terms);
+  block(document.termsTitle, 11);
+  if (document.terms) block(document.terms);
+  if (record.terms) block(record.terms);
   y -= 12;
   for (const field of [
     seller.address,
@@ -158,14 +191,19 @@ export async function exportQuote(record: Row, lines: Row[]) {
     seller.bank && "Thanh toán: " + seller.bank,
   ].filter(Boolean))
     block(field, 9);
-  doc
-    .getPages()
-    .forEach((p, i) =>
-      p.drawText(
-        `${seller.name}  ·  ${record.code}  ·  ${i + 1}/${pageCount}`,
-        { x: margin, y: 30, size: 8, font, color: muted },
+  doc.getPages().forEach((p, i) =>
+    wrap(`${seller.name} · ${record.code} · ${i + 1}/${pageCount}`, 511, 8)
+      .slice(0, 2)
+      .forEach((line, j) =>
+        p.drawText(line, {
+          x: margin,
+          y: 42 - j * 12,
+          size: 8,
+          font,
+          color: muted,
+        }),
       ),
-    );
+  );
   doc.setTitle("Báo giá " + record.code + " — AMORA STUDIO");
   const bytes = await doc.save();
   downloadBlob(

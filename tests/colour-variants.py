@@ -64,7 +64,7 @@ ctv=base['change']('ctv1@test.amora','Another-temporary-password','CTV-new-priva
 for path,method,payload in [('/api/products/variant-options','GET',None),('/api/products/sku-preview','POST',p),('/api/products/batch','POST',{'items':items})]:call(path,method,payload,ctv,403)
 # Fresh backup includes the new colour field and schema marker.
 backup=call('/api/admin/backup',token=a)
-assert backup['schema']=='004_product_colours.sql'
+assert backup['schema']==sorted((Path(__file__).parents[1]/'database/migrations').glob('*.sql'))[-1].name
 assert any(x.get('color_label')=='Trắng' for x in backup['tables']['products'])
 Path(__file__).parents[1].joinpath('colour-test-backup.json').write_text(json.dumps(backup))
 print('PASS: colour variants, exact generated SKUs, duplicate protection, batch rollback, custom colours, stable existing codes, model rename, XLSX colour, snapshots, permissions and backup.')

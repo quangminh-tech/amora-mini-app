@@ -21,6 +21,9 @@ with psycopg.connect(url) as conn:
             from psycopg import sql
             cur.execute(sql.SQL('SELECT count(*) FROM {}').format(sql.Identifier(table)))
             assert cur.fetchone()[0]==len(rows),table
+        if json.loads(backup.read_text())['schema']=='005_document_templates.sql':
+            for row in expected['quotes']:
+                cur.execute('SELECT document_snapshot FROM quotes WHERE id=%s',[row['id']]);assert cur.fetchone()[0]==row['document_snapshot']
         cur.execute('SELECT count(*) FROM sessions');assert cur.fetchone()[0]==0
         cur.execute('SELECT count(*) FROM schema_migrations');assert cur.fetchone()[0]==len(list((root/'database/migrations').glob('*.sql')))
 result=subprocess.run([sys.executable,str(root/'scripts/restore.py'),str(backup),'--execute'],env=env,capture_output=True,text=True)

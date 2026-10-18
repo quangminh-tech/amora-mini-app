@@ -1,3 +1,4 @@
+import { Loading } from "../components/UI";
 import React, { useEffect, useState, FormEvent, ReactNode } from "react";
 import {
   api,
@@ -19,7 +20,9 @@ import {
   Modal,
   ErrorBox,
   ProductImage,
-  useLoad, Pagination, useDebounced,
+  useLoad,
+  Pagination,
+  useDebounced,
 } from "../components/UI";
 import { Common } from "../types";
 export function SalesPage({
@@ -27,25 +30,44 @@ export function SalesPage({
   revision,
   refresh,
   tell,
-  type,recordId,launch,
+  type,
+  recordId,
+  launch,
 }: Common & { type: "orders" | "quotes" }) {
   const quote = type === "quotes",
     manager = user.role === "manager";
-  const [page,setPage]=useState(1);
-  const [search,setSearch]=useState(""),[filter,setFilter]=useState("");
-  const term=useDebounced(search);
-  const {data:result,error}=useLoad<Row>(`/${type}?page=${page}&search=${encodeURIComponent(term)}&status=${filter}`,revision);
-  const rows:Row[] | undefined=result?.items;
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState(""),
+    [filter, setFilter] = useState("");
+  const term = useDebounced(search);
+  const {
+    data: result,
+    error,
+    loading,
+  } = useLoad<Row>(
+    `/${type}?page=${page}&search=${encodeURIComponent(term)}&status=${filter}`,
+    revision,
+  );
+  const rows: Row[] | undefined = result?.items;
 
-  const [customerSearch,setCustomerSearch]=useState("");
-  const customerTerm=useDebounced(customerSearch);
-  const {data: customerResult}=useLoad<Row>(`/customers?page=1&pageSize=30&search=${encodeURIComponent(customerTerm)}`,revision);
-  const customers:Row[] | undefined=customerResult?.items;
+  const { data: documentTemplates } = useLoad<Row>(
+    "/document-templates",
+    revision,
+  );
+  const [customerSearch, setCustomerSearch] = useState("");
+  const customerTerm = useDebounced(customerSearch);
+  const { data: customerResult } = useLoad<Row>(
+    `/customers?page=1&pageSize=30&search=${encodeURIComponent(customerTerm)}`,
+    revision,
+  );
+  const customers: Row[] | undefined = customerResult?.items;
   const { data: settings } = useLoad<Row>("/settings", revision);
-  const [userSearch,setUserSearch]=useState("");
-  const userTerm=useDebounced(userSearch);
+  const [userSearch, setUserSearch] = useState("");
+  const userTerm = useDebounced(userSearch);
   const { data: users } = useLoad<Row[]>(
-    manager ? "/admin/users?pageSize=30&search="+encodeURIComponent(userTerm) : "/scents",
+    manager
+      ? "/admin/users?pageSize=30&search=" + encodeURIComponent(userTerm)
+      : "/scents",
     revision,
   );
   const [form, setForm] = useState<Row | null>(null),
@@ -53,15 +75,31 @@ export function SalesPage({
     [err, setErr] = useState(""),
     [busy, setBusy] = useState(false),
     [action, setAction] = useState<Row | null>(null);
-  const [productSearch,setProductSearch]=useState("");
-  const productTerm=useDebounced(productSearch);
-  const selectedProductIds=(form?.lines || []).map((l:Row)=>l.productId).filter(Boolean).join(',');
-  const {data:catalogue}=useLoad<Row>(`/products?page=1&pageSize=30&search=${encodeURIComponent(productTerm)}&includeIds=${selectedProductIds}`,revision);
-  const [newContact,setNewContact]=useState<Row|null>(null);
-  async function saveContact(){
-    setBusy(true);setErr("");
-    try {const saved=await api("/customers","POST",newContact);setForm(f=>f?{...f,customerId:saved.id}:f);setNewContact(null);refresh();tell("Đã lưu thông tin người nhận.")}
-    catch(e){setErr((e as Error).message)}finally{setBusy(false)}
+  const [productSearch, setProductSearch] = useState("");
+  const productTerm = useDebounced(productSearch);
+  const selectedProductIds = (form?.lines || [])
+    .map((l: Row) => l.productId)
+    .filter(Boolean)
+    .join(",");
+  const { data: catalogue } = useLoad<Row>(
+    `/products?page=1&pageSize=30&search=${encodeURIComponent(productTerm)}&includeIds=${selectedProductIds}`,
+    revision,
+  );
+  const [newContact, setNewContact] = useState<Row | null>(null);
+  async function saveContact() {
+    setBusy(true);
+    setErr("");
+    try {
+      const saved = await api("/customers", "POST", newContact);
+      setForm((f) => (f ? { ...f, customerId: saved.id } : f));
+      setNewContact(null);
+      refresh();
+      tell("Đã lưu thông tin người nhận.");
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
   }
   async function open(id: string) {
     setErr("");
@@ -74,7 +112,9 @@ export function SalesPage({
       setBusy(false);
     }
   }
-  useEffect(()=>{if(recordId)void open(recordId)},[recordId]);
+  useEffect(() => {
+    if (recordId) void open(recordId);
+  }, [recordId]);
   const newForm = () => {
     setErr("");
     setForm({
@@ -84,7 +124,22 @@ export function SalesPage({
       shipping: 0,
       note: "",
       validUntil: new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10),
-      terms: settings?.quoteTerms || "",
+      terms:
+        quote && documentTemplates?.templates?.length
+          ? ""
+          : settings?.quoteTerms || "",
+      document:
+        quote && documentTemplates?.templates?.length
+          ? {
+              templateId: documentTemplates.templates[0].id,
+              values: Object.fromEntries(
+                documentTemplates.templates[0].fields.map((f: Row) => [
+                  f.key,
+                  f.defaultValue,
+                ]),
+              ),
+            }
+          : null,
       lines: [{ productId: "", qty: 1, unitPrice: "" }],
     });
   };
@@ -96,6 +151,7 @@ export function SalesPage({
     try {
       const body = {
         ...form,
+        clearDocument: quote && form.document === null,
         shipping: Number(form.shipping),
         lines: form.lines.map((l: Row) => ({
           productId: l.productId,
@@ -133,6 +189,12 @@ export function SalesPage({
       note: r.note,
       validUntil: r.valid_until?.slice(0, 10),
       terms: r.terms,
+      document: parse(r.document_snapshot || {}).template
+        ? {
+            templateId: parse(r.document_snapshot || {}).template.id,
+            values: parse(r.document_snapshot || {}).values || {},
+          }
+        : null,
       lines: detail.lines.map((l: Row) => ({
         productId: l.product_id,
         qty: l.qty,
@@ -214,13 +276,19 @@ export function SalesPage({
             aria-label="Tìm đơn hoặc báo giá"
             placeholder="Tìm mã, khách hàng, CTV…"
             value={search}
-            onChange={(e) => {setSearch(e.target.value);setPage(1)}}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
           />
         </div>
         <select
           aria-label="Lọc trạng thái"
           value={filter}
-          onChange={(e) => {setFilter(e.target.value);setPage(1)}}
+          onChange={(e) => {
+            setFilter(e.target.value);
+            setPage(1);
+          }}
         >
           <option value="">Tất cả trạng thái</option>
           {statusOptions.map((s) => (
@@ -242,7 +310,8 @@ export function SalesPage({
           của mình.
         </div>
       )}
-      <section className="panel table-wrap">
+      <section className="panel table-wrap" aria-busy={loading}>
+        {loading && <Loading />}
         {rows?.length ? (
           <table>
             <thead>
@@ -257,35 +326,39 @@ export function SalesPage({
               </tr>
             </thead>
             <tbody>
-              {rows
-                .map((r) => (
-                  <tr key={r.id}>
-                    <td className="code">{r.code}</td>
-                    <td>{r.customer_name}</td>
-                    {manager && <td>{r.owner_name}</td>}
-                    <td>{date(r.created_at)}</td>
-                    <td>{money(Number(r.subtotal) + Number(r.shipping))}</td>
-                    <td>
-                      <Badge value={r.status} />
-                    </td>
-                    <td>
-                      <button
-                        className="ghost"
-                        disabled={busy}
-                        onClick={() => open(r.id)}
-                      >
-                        Xem →
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+              {rows.map((r) => (
+                <tr key={r.id}>
+                  <td className="code">{r.code}</td>
+                  <td>{r.customer_name}</td>
+                  {manager && <td>{r.owner_name}</td>}
+                  <td>{date(r.created_at)}</td>
+                  <td>{money(Number(r.subtotal) + Number(r.shipping))}</td>
+                  <td>
+                    <Badge value={r.status} />
+                  </td>
+                  <td>
+                    <button
+                      className="ghost"
+                      disabled={busy}
+                      onClick={() => open(r.id)}
+                    >
+                      Xem →
+                    </button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
-        ) : (
+        ) : loading ? null : (
           <Empty text={"Chưa có " + (quote ? "báo giá" : "đơn hàng") + "."} />
         )}
       </section>
-      <Pagination data={result} page={page} setPage={setPage}/>
+      <Pagination
+        loading={loading}
+        data={result}
+        page={page}
+        setPage={setPage}
+      />
       {form && (
         <Modal
           title={
@@ -294,14 +367,146 @@ export function SalesPage({
           close={() => setForm(null)}
         >
           <form onSubmit={save}>
+            {quote && documentTemplates && (
+              <section>
+                <Field label="Mẫu chứng từ">
+                  <select
+                    value={form.document?.templateId || ""}
+                    onChange={(e) => {
+                      const t = documentTemplates.templates.find(
+                        (x: Row) => x.id === e.target.value,
+                      );
+                      setForm({
+                        ...form,
+                        document: t
+                          ? {
+                              templateId: t.id,
+                              values: Object.fromEntries(
+                                t.fields.map((f: Row) => [
+                                  f.key,
+                                  f.defaultValue,
+                                ]),
+                              ),
+                            }
+                          : null,
+                        validUntil: t
+                          ? new Date(Date.now() + t.validDays * 864e5)
+                              .toISOString()
+                              .slice(0, 10)
+                          : form.validUntil,
+                      });
+                    }}
+                  >
+                    <option value="">Báo giá cơ bản</option>
+                    {documentTemplates.templates.map((t: Row) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <div className="template-fields">
+                  {documentTemplates.templates
+                    .find((t: Row) => t.id === form.document?.templateId)
+                    ?.fields.map((f: Row) => (
+                      <Field key={f.key} label={f.label}>
+                        <textarea
+                          maxLength={1000}
+                          value={form.document.values[f.key] ?? f.defaultValue}
+                          onChange={(e) =>
+                            setForm({
+                              ...form,
+                              document: {
+                                ...form.document,
+                                values: {
+                                  ...form.document.values,
+                                  [f.key]: e.target.value,
+                                },
+                              },
+                            })
+                          }
+                        />
+                      </Field>
+                    ))}
+                </div>
+              </section>
+            )}
             <div className="contact-inline">
-              <button type="button" className="secondary" onClick={()=>setNewContact(newContact?null:{name:"",phone:"",email:"",company:"",address:""})}>{newContact?"Bỏ qua thêm người nhận":"+ Thêm thông tin người nhận mới"}</button>
-              {newContact && <div className="inline-action"><h3>Thông tin người nhận</h3><div className="form-grid">{[["name","Tên người nhận"],["phone","Điện thoại"],["email","Email"],["company","Công ty"],["address","Địa chỉ"]].map(([k,label])=><Field key={k} label={label}><input maxLength={k==="address"?1000:k==="phone"?40:k==="name"?180:200} value={newContact[k]} onChange={e=>setNewContact({...newContact,[k]:e.target.value})}/></Field>)}</div><button type="button" className="primary" disabled={busy||!newContact.name.trim()} onClick={()=>void saveContact()}>Lưu và chọn người nhận</button></div>}
+              <button
+                type="button"
+                className="secondary"
+                onClick={() =>
+                  setNewContact(
+                    newContact
+                      ? null
+                      : {
+                          name: "",
+                          phone: "",
+                          email: "",
+                          company: "",
+                          address: "",
+                        },
+                  )
+                }
+              >
+                {newContact
+                  ? "Bỏ qua thêm người nhận"
+                  : "+ Thêm thông tin người nhận mới"}
+              </button>
+              {newContact && (
+                <div className="inline-action">
+                  <h3>Thông tin người nhận</h3>
+                  <div className="form-grid">
+                    {[
+                      ["name", "Tên người nhận"],
+                      ["phone", "Điện thoại"],
+                      ["email", "Email"],
+                      ["company", "Công ty"],
+                      ["address", "Địa chỉ"],
+                    ].map(([k, label]) => (
+                      <Field key={k} label={label}>
+                        <input
+                          maxLength={
+                            k === "address"
+                              ? 1000
+                              : k === "phone"
+                                ? 40
+                                : k === "name"
+                                  ? 180
+                                  : 200
+                          }
+                          value={newContact[k]}
+                          onChange={(e) =>
+                            setNewContact({
+                              ...newContact,
+                              [k]: e.target.value,
+                            })
+                          }
+                        />
+                      </Field>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    className="primary"
+                    disabled={busy || !newContact.name.trim()}
+                    onClick={() => void saveContact()}
+                  >
+                    Lưu và chọn người nhận
+                  </button>
+                </div>
+              )}
             </div>
             <div className="form-grid">
               <Field label="Tìm người nhận báo giá">
-                <input value={customerSearch} placeholder="Tên / điện thoại / email…" onChange={e=>setCustomerSearch(e.target.value)}/>
-                <small className="muted">Hiển thị tối đa 30 kết quả mỗi lần tìm.</small>
+                <input
+                  value={customerSearch}
+                  placeholder="Tên / điện thoại / email…"
+                  onChange={(e) => setCustomerSearch(e.target.value)}
+                />
+                <small className="muted">
+                  Hiển thị tối đa 30 kết quả mỗi lần tìm.
+                </small>
               </Field>
               <Field label="Khách hàng">
                 <select
@@ -312,7 +517,12 @@ export function SalesPage({
                   }
                 >
                   <option value="">Chọn khách hàng</option>
-                  {form.customerId && !customers?.some(c=>c.id===form.customerId) && <option value={form.customerId}>Khách hàng đã chọn trên chứng từ</option>}
+                  {form.customerId &&
+                    !customers?.some((c) => c.id === form.customerId) && (
+                      <option value={form.customerId}>
+                        Khách hàng đã chọn trên chứng từ
+                      </option>
+                    )}
                   {customers?.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name} {c.phone && "· " + c.phone}
@@ -342,7 +552,12 @@ export function SalesPage({
               </Field>
               {manager && !form.id && (
                 <Field label="Người phụ trách / hưởng hoa hồng">
-                  <input aria-label="Tìm người phụ trách" placeholder="Tìm tên hoặc email CTV…" value={userSearch} onChange={e=>setUserSearch(e.target.value)}/>
+                  <input
+                    aria-label="Tìm người phụ trách"
+                    placeholder="Tìm tên hoặc email CTV…"
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                  />
 
                   <select
                     value={form.ownerId}
@@ -350,7 +565,12 @@ export function SalesPage({
                       setForm({ ...form, ownerId: e.target.value })
                     }
                   >
-                    {form.ownerId && !users?.some(u=>u.id===form.ownerId) && <option value={form.ownerId}>Người phụ trách đã chọn</option>}
+                    {form.ownerId &&
+                      !users?.some((u) => u.id === form.ownerId) && (
+                        <option value={form.ownerId}>
+                          Người phụ trách đã chọn
+                        </option>
+                      )}
                     {users
                       ?.filter((u) => u.active)
                       .map((u) => (
@@ -376,7 +596,8 @@ export function SalesPage({
             </div>
             {!customers?.length && (
               <div className="notice">
-                Chưa có thông tin phù hợp. Thêm người nhận mới ở trên hoặc đổi từ khóa tìm.
+                Chưa có thông tin phù hợp. Thêm người nhận mới ở trên hoặc đổi
+                từ khóa tìm.
               </div>
             )}
             {!available(form.channel).length && (
@@ -385,7 +606,17 @@ export function SalesPage({
                 Bảng giá.
               </div>
             )}
-            <h3>Sản phẩm</h3><Field label="Tìm sản phẩm trong danh mục"><input placeholder="Tên sản phẩm hoặc mã SKU…" value={productSearch} onChange={e=>setProductSearch(e.target.value)}/><small className="muted">30 kết quả phù hợp cùng các sản phẩm đã chọn.</small></Field>
+            <h3>Sản phẩm</h3>
+            <Field label="Tìm sản phẩm trong danh mục">
+              <input
+                placeholder="Tên sản phẩm hoặc mã SKU…"
+                value={productSearch}
+                onChange={(e) => setProductSearch(e.target.value)}
+              />
+              <small className="muted">
+                30 kết quả phù hợp cùng các sản phẩm đã chọn.
+              </small>
+            </Field>
             <div className="sale-lines">
               {form.lines.map((l: Row, i: number) => (
                 <div className="sale-line" key={i}>
@@ -510,7 +741,13 @@ export function SalesPage({
               />
             </Field>
             {quote && (
-              <Field label="Điều kiện báo giá">
+              <Field
+                label={
+                  form.document
+                    ? "Điều kiện bổ sung cho báo giá này"
+                    : "Điều kiện báo giá"
+                }
+              >
                 <textarea
                   rows={4}
                   maxLength={5000}
@@ -576,7 +813,12 @@ export function SalesPage({
                   <tr key={l.id}>
                     <td>
                       {l.product_name}
-                      <small className="muted block">{l.sku}</small>{l.lead_days_min!=null&&<small className="muted block">Chuẩn bị: {l.lead_days_min}–{l.lead_days_max} ngày</small>}
+                      <small className="muted block">{l.sku}</small>
+                      {l.lead_days_min != null && (
+                        <small className="muted block">
+                          Chuẩn bị: {l.lead_days_min}–{l.lead_days_max} ngày
+                        </small>
+                      )}
                     </td>
                     <td>{l.qty}</td>
                     <td>{money(l.unit_price)}</td>
@@ -626,7 +868,37 @@ export function SalesPage({
             </>
           )}
           <div className="detail-actions">
-            {quote&&detail.record.status==='accepted'&&(manager||settings?.ctvQuotes)&&<button className="secondary" disabled={busy} onClick={async()=>{setBusy(true);setErr('');try{const result=await api('/quotes/'+detail.record.id+'/convert','POST',{version:detail.record.version});setDetail(null);refresh();tell('Đã mở đơn từ báo giá; giá và size đã chốt được giữ nguyên.');launch?.('orders',result.id)}catch(e){setErr((e as Error).message)}finally{setBusy(false)}}}>{detail.orderId?'Mở đơn đã tạo':'Chuyển thành đơn'}</button>}
+            {quote &&
+              detail.record.status === "accepted" &&
+              (manager || settings?.ctvQuotes) && (
+                <button
+                  className="secondary"
+                  disabled={busy}
+                  onClick={async () => {
+                    setBusy(true);
+                    setErr("");
+                    try {
+                      const result = await api(
+                        "/quotes/" + detail.record.id + "/convert",
+                        "POST",
+                        { version: detail.record.version },
+                      );
+                      setDetail(null);
+                      refresh();
+                      tell(
+                        "Đã mở đơn từ báo giá; giá và size đã chốt được giữ nguyên.",
+                      );
+                      launch?.("orders", result.id);
+                    } catch (e) {
+                      setErr((e as Error).message);
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                >
+                  {detail.orderId ? "Mở đơn đã tạo" : "Chuyển thành đơn"}
+                </button>
+              )}
             {detail.record.status === (quote ? "draft" : "pending") &&
               (!quote || manager || settings?.ctvQuotes) && (
                 <button
@@ -738,7 +1010,10 @@ export function SalesPage({
                       }
                     />
                   </Field>
-                  <p className="notice">Chênh lệch so với số đã thu hiện tại được lưu thành một dòng thu hoặc điều chỉnh. Lịch sử luôn được giữ lại.</p>
+                  <p className="notice">
+                    Chênh lệch so với số đã thu hiện tại được lưu thành một dòng
+                    thu hoặc điều chỉnh. Lịch sử luôn được giữ lại.
+                  </p>
                   <Field label="Nội dung / mã giao dịch">
                     <input
                       required
@@ -777,7 +1052,35 @@ export function SalesPage({
             </form>
           )}
           <ErrorBox error={err} />
-          {!quote && <section className="table-wrap"><h3>Lịch sử thu và điều chỉnh</h3><table><thead><tr><th>Ngày thu</th><th>Số tiền</th><th>Tham chiếu</th><th>Người ghi</th></tr></thead><tbody>{detail.payments?.map((p:Row)=><tr key={p.id}><td>{p.opening_balance ? "Số dư trước nâng cấp" : date(p.occurred_at)}</td><td>{money(p.amount)}</td><td>{p.reference}</td><td>{p.actor_name || "Hệ thống"}</td></tr>)}</tbody></table></section>}
+          {!quote && (
+            <section className="table-wrap">
+              <h3>Lịch sử thu và điều chỉnh</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Ngày thu</th>
+                    <th>Số tiền</th>
+                    <th>Tham chiếu</th>
+                    <th>Người ghi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detail.payments?.map((p: Row) => (
+                    <tr key={p.id}>
+                      <td>
+                        {p.opening_balance
+                          ? "Số dư trước nâng cấp"
+                          : date(p.occurred_at)}
+                      </td>
+                      <td>{money(p.amount)}</td>
+                      <td>{p.reference}</td>
+                      <td>{p.actor_name || "Hệ thống"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          )}
           {!quote && (
             <div className="timeline">
               <h3>Lịch sử đơn hàng</h3>

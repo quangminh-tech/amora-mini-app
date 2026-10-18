@@ -154,34 +154,95 @@ export function ProductImage({ id }: { id?: string }) {
   );
 }
 
-export function useLoad<T>(path: string, revision = 0) {
-  const [data, setData] = useState<T | null>(null);
-  const [error, setError] = useState("");
+export function Loading({ label = "Đang tải dữ liệu…" }: { label?: string }) {
+  return (
+    <div className="loading-state" role="status" aria-live="polite">
+      <span className="spinner" aria-hidden="true" />
+      {label}
+    </div>
+  );
+}
+export function useLoad<T>(path: string | null, revision = 0) {
+  const [state, setState] = useState<{
+    key: string;
+    data: T | null;
+    error: string;
+    loading: boolean;
+  }>({ key: "", data: null, error: "", loading: true });
+  const key = path + "|" + revision;
   useEffect(() => {
-    let active = true;
-    setError("");
-    setData(null);
-    api(path)
-      .then((d) => {
-        if (active) setData(d);
+    let current = true;
+    const controller = new AbortController();
+    if (!path) return;
+    setState({ key, data: null, error: "", loading: true });
+    api(path, "GET", undefined, { signal: controller.signal })
+      .then((data) => {
+        if (current) setState({ key, data, error: "", loading: false });
       })
       .catch((e) => {
-        if (active) setError(e.message);
+        if (current)
+          setState({ key, data: null, error: e.message, loading: false });
       });
     return () => {
-      active = false;
+      current = false;
+      controller.abort();
     };
   }, [path, revision]);
-  return { data, error };
+  return !path
+    ? { data: null, error: "", loading: false }
+    : state.key === key
+      ? state
+      : { data: null, error: "", loading: true };
 }
 
 export function useDebounced(value: string, delay = 250) {
-  const [result,setResult]=useState(value);
-  useEffect(()=>{const id=setTimeout(()=>setResult(value),delay);return()=>clearTimeout(id)},[value,delay]);
+  const [result, setResult] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setResult(value), delay);
+    return () => clearTimeout(id);
+  }, [value, delay]);
   return result;
 }
-export function Pagination({ data, page, setPage }: {data: Row | null;page:number;setPage:(p:number)=>void}) {
-  if(!data) return null;
-  const pages=Math.max(1,Math.ceil(data.total/data.pageSize));
-  return <div className="pagination"><span>{data.total ? `${(page-1)*data.pageSize+1}–${Math.min(page*data.pageSize,data.total)} / ${data.total}` : "0 kết quả"}</span><div><button className="secondary" disabled={page<=1} onClick={()=>setPage(page-1)}>← Trước</button><span>Trang {page} / {pages}</span><button className="secondary" disabled={page>=pages} onClick={()=>setPage(page+1)}>Sau →</button></div></div>;
+export function Pagination({
+  data,
+  page,
+  setPage,
+  loading = false,
+}: {
+  data: Row | null;
+  page: number;
+  setPage: (p: number) => void;
+  loading?: boolean;
+}) {
+  const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
+  return (
+    <div className="pagination" aria-busy={loading}>
+      <span>
+        {loading
+          ? "Đang tải trang " + page + "…"
+          : data?.total
+            ? `${(page - 1) * data.pageSize + 1}–${Math.min(page * data.pageSize, data.total)} / ${data.total}`
+            : "0 kết quả"}
+      </span>
+      <div>
+        <button
+          className="secondary"
+          disabled={loading || !data || page <= 1}
+          onClick={() => setPage(page - 1)}
+        >
+          ← Trước
+        </button>
+        <span>
+          Trang {page} / {data ? pages : "…"}
+        </span>
+        <button
+          className="secondary"
+          disabled={loading || !data || page >= pages}
+          onClick={() => setPage(page + 1)}
+        >
+          Sau →
+        </button>
+      </div>
+    </div>
+  );
 }

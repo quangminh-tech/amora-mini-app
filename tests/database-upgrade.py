@@ -31,7 +31,10 @@ with psycopg.connect(url) as conn:
         cur.execute((root/'database/migrations/003_catalogue_workspace.sql').read_text())
         cur.execute('SELECT count(*) FROM products WHERE model_id IS NULL');assert cur.fetchone()[0]==0
         cur.execute('SELECT count(*) FROM customers c LEFT JOIN customer_groups g ON g.id=c.group_id WHERE g.id IS NULL');assert cur.fetchone()[0]==0
-        checks+=6
+        for migration in ['004_product_colours.sql','005_document_templates.sql']:cur.execute((root/'database/migrations'/migration).read_text())
+        cur.execute("SELECT count(*) FROM products WHERE color_label<>''");assert cur.fetchone()[0]==0
+        cur.execute("SELECT count(*) FROM quotes WHERE document_snapshot<>'{}'::jsonb");assert cur.fetchone()[0]==0
+        checks+=8
         cur.execute('SELECT id FROM orders LIMIT 1');order=cur.fetchone()[0]
         cur.execute('SELECT id FROM quotes LIMIT 1');quote=cur.fetchone()[0]
         cur.execute('SELECT id FROM users LIMIT 1');user=cur.fetchone()[0]

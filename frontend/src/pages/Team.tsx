@@ -1,3 +1,4 @@
+import { Loading } from "../components/UI";
 import React, { useEffect, useState, FormEvent, ReactNode } from "react";
 import {
   api,
@@ -19,16 +20,27 @@ import {
   Modal,
   ErrorBox,
   ProductImage,
-  useLoad, Pagination, useDebounced,
+  useLoad,
+  Pagination,
+  useDebounced,
 } from "../components/UI";
 import { TransferBar } from "../components/Transfer";
 import { Common } from "../types";
 export function Commissions({ user, revision, refresh, tell }: Common) {
-  const [page,setPage]=useState(1),[search,setSearch]=useState(""),[status,setStatus]=useState("");
-  const term=useDebounced(search);
-  const {data:result,error}=useLoad<Row>(`/commissions?page=${page}&search=${encodeURIComponent(term)}&status=${status}`,revision);
-  const rows:Row[] | undefined=result?.items;
-  const {data:summary}=useLoad<Row>("/commissions/summary",revision);
+  const [page, setPage] = useState(1),
+    [search, setSearch] = useState(""),
+    [status, setStatus] = useState("");
+  const term = useDebounced(search);
+  const {
+    data: result,
+    error,
+    loading,
+  } = useLoad<Row>(
+    `/commissions?page=${page}&search=${encodeURIComponent(term)}&status=${status}`,
+    revision,
+  );
+  const rows: Row[] | undefined = result?.items;
+  const { data: summary } = useLoad<Row>("/commissions/summary", revision);
   const [edit, setEdit] = useState<Row | null>(null),
     [err, setErr] = useState(""),
     [busy, setBusy] = useState(false);
@@ -65,17 +77,41 @@ export function Commissions({ user, revision, refresh, tell }: Common) {
         ].map(([key, label]) => (
           <div className="metric" key={key}>
             <div>{label}</div>
-            <strong>
-              {money(
-                summary?.[key],
-              )}
-            </strong>
+            <strong>{money(summary?.[key])}</strong>
           </div>
         ))}
       </div>
-      <div className="toolbar"><div className="search"><input aria-label="Tìm hoa hồng" placeholder="Tìm mã đơn, tên CTV…" value={search} onChange={e=>{setSearch(e.target.value);setPage(1)}}/></div><select aria-label="Trạng thái hoa hồng" value={status} onChange={e=>{setStatus(e.target.value);setPage(1)}}><option value="">Tất cả trạng thái</option>{["pending","approved","paid","void"].map(x=><option key={x} value={x}>{x==="pending"?"Chờ duyệt":labels[x]}</option>)}</select></div>
+      <div className="toolbar">
+        <div className="search">
+          <input
+            aria-label="Tìm hoa hồng"
+            placeholder="Tìm mã đơn, tên CTV…"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+          />
+        </div>
+        <select
+          aria-label="Trạng thái hoa hồng"
+          value={status}
+          onChange={(e) => {
+            setStatus(e.target.value);
+            setPage(1);
+          }}
+        >
+          <option value="">Tất cả trạng thái</option>
+          {["pending", "approved", "paid", "void"].map((x) => (
+            <option key={x} value={x}>
+              {x === "pending" ? "Chờ duyệt" : labels[x]}
+            </option>
+          ))}
+        </select>
+      </div>
       <ErrorBox error={error} />
-      <section className="panel table-wrap">
+      <section className="panel table-wrap" aria-busy={loading}>
+        {loading && <Loading />}
         {rows?.length ? (
           <table>
             <thead>
@@ -126,11 +162,16 @@ export function Commissions({ user, revision, refresh, tell }: Common) {
               ))}
             </tbody>
           </table>
-        ) : (
+        ) : loading ? null : (
           <Empty text="Hoa hồng sẽ xuất hiện khi đơn CTV hoàn tất và thu đủ tiền." />
         )}
       </section>
-      <Pagination data={result} page={page} setPage={setPage}/>
+      <Pagination
+        loading={loading}
+        data={result}
+        page={page}
+        setPage={setPage}
+      />
       {edit && (
         <Modal
           title={
@@ -173,13 +214,41 @@ export function Commissions({ user, revision, refresh, tell }: Common) {
 }
 
 export function Users({ user, revision, refresh, tell }: Common) {
-  const [page,setPage]=useState(1),[search,setSearch]=useState(""),[status,setStatus]=useState(""),[role,setRole]=useState("");
-  const term=useDebounced(search);
-  const {data:result,error}=useLoad<Row>(`/admin/users?page=${page}&search=${encodeURIComponent(term)}&status=${status}&role=${role}`,revision);
-  const rows:Row[] | undefined=result?.items;
-  const {data:limits}=useLoad<Row>("/admin/account-limits",revision);
-  const [limitForm,setLimitForm]=useState<Row | null>(null);
-  async function saveLimits(e:FormEvent){e.preventDefault();setBusy(true);setErr("");try{await api("/admin/account-limits","PUT",{managers:Number(limitForm!.managers),ctvs:Number(limitForm!.ctvs),version:limitForm!.version});setLimitForm(null);refresh();tell("Đã lưu giới hạn tài khoản.")}catch(e){setErr((e as Error).message)}finally{setBusy(false)}}
+  const [page, setPage] = useState(1),
+    [search, setSearch] = useState(""),
+    [status, setStatus] = useState(""),
+    [role, setRole] = useState("");
+  const term = useDebounced(search);
+  const {
+    data: result,
+    error,
+    loading,
+  } = useLoad<Row>(
+    `/admin/users?page=${page}&search=${encodeURIComponent(term)}&status=${status}&role=${role}`,
+    revision,
+  );
+  const rows: Row[] | undefined = result?.items;
+  const { data: limits } = useLoad<Row>("/admin/account-limits", revision);
+  const [limitForm, setLimitForm] = useState<Row | null>(null);
+  async function saveLimits(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setErr("");
+    try {
+      await api("/admin/account-limits", "PUT", {
+        managers: Number(limitForm!.managers),
+        ctvs: Number(limitForm!.ctvs),
+        version: limitForm!.version,
+      });
+      setLimitForm(null);
+      refresh();
+      tell("Đã lưu giới hạn tài khoản.");
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   const [edit, setEdit] = useState<Row | null>(null),
     [err, setErr] = useState(""),
     [busy, setBusy] = useState(false);
@@ -210,7 +279,8 @@ export function Users({ user, revision, refresh, tell }: Common) {
     <>
       <div className="toolbar">
         <p className="muted">
-          {limits?.active_managers || 0}/{limits?.managers || "—"} quản lý · {limits?.active_ctvs || 0}/{limits?.ctvs || "—"} CTV đang hoạt động
+          {limits?.active_managers || 0}/{limits?.managers || "—"} quản lý ·{" "}
+          {limits?.active_ctvs || 0}/{limits?.ctvs || "—"} CTV đang hoạt động
         </p>
         <button
           className="primary"
@@ -228,18 +298,75 @@ export function Users({ user, revision, refresh, tell }: Common) {
           + Cấp tài khoản
         </button>
       </div>
-      <div className="toolbar"><div className="search"><input aria-label="Tìm CTV" placeholder="Tên hoặc email CTV…" value={search} onChange={e=>{setSearch(e.target.value);setPage(1)}}/></div><select aria-label="Lọc vai trò" value={role} onChange={e=>{setRole(e.target.value);setPage(1)}}><option value="">Mọi vai trò</option><option value="ctv">Cộng tác viên</option><option value="manager">Quản lý</option></select><select aria-label="Lọc tài khoản" value={status} onChange={e=>{setStatus(e.target.value);setPage(1)}}><option value="">Mọi trạng thái</option><option value="active">Đang hoạt động</option><option value="inactive">Đã khóa</option></select><button className="secondary" onClick={()=>{setErr("");setLimitForm({...limits})}} disabled={!limits}>Giới hạn tài khoản</button></div>
-      <TransferBar kind="users" filters={{search:term,status,role}} refresh={refresh} tell={tell}/>
-      <p className="notice">Mỗi CTV có tài khoản và dữ liệu riêng. Báo giá, đơn hàng và hoa hồng luôn gắn với người phụ trách trên chứng từ.</p>
+      <div className="toolbar">
+        <div className="search">
+          <input
+            aria-label="Tìm CTV"
+            placeholder="Tên hoặc email CTV…"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+          />
+        </div>
+        <select
+          aria-label="Lọc vai trò"
+          value={role}
+          onChange={(e) => {
+            setRole(e.target.value);
+            setPage(1);
+          }}
+        >
+          <option value="">Mọi vai trò</option>
+          <option value="ctv">Cộng tác viên</option>
+          <option value="manager">Quản lý</option>
+        </select>
+        <select
+          aria-label="Lọc tài khoản"
+          value={status}
+          onChange={(e) => {
+            setStatus(e.target.value);
+            setPage(1);
+          }}
+        >
+          <option value="">Mọi trạng thái</option>
+          <option value="active">Đang hoạt động</option>
+          <option value="inactive">Đã khóa</option>
+        </select>
+        <button
+          className="secondary"
+          onClick={() => {
+            setErr("");
+            setLimitForm({ ...limits });
+          }}
+          disabled={!limits}
+        >
+          Giới hạn tài khoản
+        </button>
+      </div>
+      <TransferBar
+        kind="users"
+        filters={{ search: term, status, role }}
+        refresh={refresh}
+        tell={tell}
+      />
+      <p className="notice">
+        Mỗi CTV có tài khoản và dữ liệu riêng. Báo giá, đơn hàng và hoa hồng
+        luôn gắn với người phụ trách trên chứng từ.
+      </p>
       <ErrorBox error={error} />
-      <section className="panel table-wrap">
+      <section className="panel table-wrap" aria-busy={loading}>
+        {loading && <Loading />}
         <table>
           <thead>
             <tr>
               <th>Thành viên</th>
               <th>Vai trò</th>
               <th>Trạng thái</th>
-              <th>Báo giá / Đơn</th><th>Tiền hàng hoàn tất</th><th>Hoa hồng chưa chi</th>
+              <th>Báo giá / Đơn</th>
+              <th>Tiền hàng hoàn tất</th>
+              <th>Hoa hồng chưa chi</th>
               <th />
             </tr>
           </thead>
@@ -260,7 +387,11 @@ export function Users({ user, revision, refresh, tell }: Common) {
                     {r.active ? "Đang hoạt động" : "Đã khóa"}
                   </span>
                 </td>
-                <td>{r.quotes_count} / {r.orders_count}</td><td>{money(r.revenue)}</td><td>{money(r.outstanding)}</td>
+                <td>
+                  {r.quotes_count} / {r.orders_count}
+                </td>
+                <td>{money(r.revenue)}</td>
+                <td>{money(r.outstanding)}</td>
                 <td>
                   <button
                     className="ghost"
@@ -288,8 +419,56 @@ export function Users({ user, revision, refresh, tell }: Common) {
           </tbody>
         </table>
       </section>
-      <Pagination data={result} page={page} setPage={setPage}/>
-      {limitForm && <Modal title="Giới hạn tài khoản hoạt động" close={()=>setLimitForm(null)}><form onSubmit={saveLimits}><p className="muted">Tài khoản đã khóa vẫn giữ lịch sử và không chiếm chỗ hoạt động.</p><div className="form-grid"><Field label="Số quản lý tối đa"><input type="number" required min={1} max={1000} value={limitForm.managers} onChange={e=>setLimitForm({...limitForm,managers:e.target.value})}/></Field><Field label="Số CTV tối đa"><input type="number" required min={1} max={10000} value={limitForm.ctvs} onChange={e=>setLimitForm({...limitForm,ctvs:e.target.value})}/></Field></div><ErrorBox error={err}/><div className="form-actions"><button className="primary" disabled={busy}>Lưu giới hạn</button></div></form></Modal>}
+      <Pagination
+        loading={loading}
+        data={result}
+        page={page}
+        setPage={setPage}
+      />
+      {limitForm && (
+        <Modal
+          title="Giới hạn tài khoản hoạt động"
+          close={() => setLimitForm(null)}
+        >
+          <form onSubmit={saveLimits}>
+            <p className="muted">
+              Tài khoản đã khóa vẫn giữ lịch sử và không chiếm chỗ hoạt động.
+            </p>
+            <div className="form-grid">
+              <Field label="Số quản lý tối đa">
+                <input
+                  type="number"
+                  required
+                  min={1}
+                  max={1000}
+                  value={limitForm.managers}
+                  onChange={(e) =>
+                    setLimitForm({ ...limitForm, managers: e.target.value })
+                  }
+                />
+              </Field>
+              <Field label="Số CTV tối đa">
+                <input
+                  type="number"
+                  required
+                  min={1}
+                  max={10000}
+                  value={limitForm.ctvs}
+                  onChange={(e) =>
+                    setLimitForm({ ...limitForm, ctvs: e.target.value })
+                  }
+                />
+              </Field>
+            </div>
+            <ErrorBox error={err} />
+            <div className="form-actions">
+              <button className="primary" disabled={busy}>
+                Lưu giới hạn
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
       {edit && (
         <Modal
           title={

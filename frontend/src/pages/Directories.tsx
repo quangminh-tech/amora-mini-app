@@ -1,9 +1,212 @@
-import React,{useState,FormEvent} from 'react';
-import {Common} from '../types';import {api,Row} from '../api';import {useLoad,Modal,Field,ErrorBox,Empty} from '../components/UI';import {TransferBar} from '../components/Transfer';
-export function Directories({revision,refresh,tell}:Common){
- const [kind,setKind]=useState('product-categories'),[edit,setEdit]=useState<Row|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false);const {data,error:loadError}=useLoad<Row[]>('/directories/'+kind,revision);
- const scent=kind==='scents';const title=scent?'Mùi hương':kind==='customer-groups'?'Nhóm khách hàng':'Nhóm sản phẩm';
- async function save(e:FormEvent){e.preventDefault();setBusy(true);setError('');try{await api('/directories/'+kind+(edit!.id?'/'+edit!.id:''),edit!.id?'PUT':'POST',{...edit,sortOrder:Number(edit!.sort_order||0),topNotes:edit!.top_notes||'',middleNotes:edit!.middle_notes||'',baseNotes:edit!.base_notes||''});setEdit(null);refresh();tell('Đã lưu '+title.toLowerCase()+'.')}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
- return <><div className="tabs">{[['product-categories','Nhóm sản phẩm'],['customer-groups','Nhóm khách hàng'],['scents','Mùi hương']].map(([k,v])=><button key={k} className={kind===k?'active':''} onClick={()=>setKind(k)}>{v}</button>)}</div><div className="toolbar"><p className="muted">{data?.length||0} mục · Ngừng sử dụng để giữ lịch sử liên kết.</p><TransferBar key={kind} kind={kind} refresh={refresh} tell={tell}/><button className="primary" onClick={()=>{setError('');setEdit({name:'',code:'',sort_order:0,active:true,meaning:'',top_notes:'',middle_notes:'',base_notes:'',ritual:''})}}>+ Thêm {title.toLowerCase()}</button></div><ErrorBox error={loadError}/><section className="panel table-wrap"><table><thead><tr>{!scent&&<th>Mã</th>}<th>Tên</th><th>{scent?'Ý nghĩa':'Thứ tự'}</th><th>Trạng thái</th><th/></tr></thead><tbody>{data?.map(r=><tr key={r.id}>{!scent&&<td className="code">{r.code}</td>}<td><strong>{r.name}</strong></td><td>{scent?r.meaning:r.sort_order}</td><td><span className={'badge '+(r.active?'completed':'cancelled')}>{r.active?'Đang dùng':'Ngừng dùng'}</span></td><td><button className="ghost" onClick={()=>{setError('');setEdit({...r})}}>Chỉnh sửa</button></td></tr>)}</tbody></table>{!data?.length&&<Empty text="Chưa có danh mục."/>}</section>
- {edit&&<Modal title={(edit.id?'Sửa ':'Thêm ')+title.toLowerCase()} close={()=>setEdit(null)}><form onSubmit={save}><div className="form-grid">{!scent&&<Field label="Mã danh mục"><input required maxLength={40} value={edit.code} onChange={e=>setEdit({...edit,code:e.target.value})}/></Field>}<Field label="Tên"><input required maxLength={scent?180:120} value={edit.name} onChange={e=>setEdit({...edit,name:e.target.value})}/></Field>{!scent&&<Field label="Thứ tự"><input required type="number" min={0} max={100000} value={edit.sort_order} onChange={e=>setEdit({...edit,sort_order:e.target.value})}/></Field>}</div>{scent&&[['meaning','Ý nghĩa'],['top_notes','Hương đầu'],['middle_notes','Hương giữa'],['base_notes','Hương cuối'],['ritual','Vai trò ritual']].map(([k,v])=><Field key={k} label={v}><textarea maxLength={1000} value={edit[k]} onChange={e=>setEdit({...edit,[k]:e.target.value})}/></Field>)}<label className="check"><input type="checkbox" checked={edit.active} onChange={e=>setEdit({...edit,active:e.target.checked})}/>Đang sử dụng</label><ErrorBox error={error}/><div className="form-actions"><button className="primary" disabled={busy}>Lưu danh mục</button></div></form></Modal>}</>;
+import { Loading } from "../components/UI";
+import React, { useState, FormEvent } from "react";
+import { Common } from "../types";
+import { api, Row } from "../api";
+import { useLoad, Modal, Field, ErrorBox, Empty } from "../components/UI";
+import { TransferBar } from "../components/Transfer";
+export function Directories({ revision, refresh, tell }: Common) {
+  const [kind, setKind] = useState("product-categories"),
+    [edit, setEdit] = useState<Row | null>(null),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(false);
+  const {
+    data,
+    error: loadError,
+    loading,
+  } = useLoad<Row[]>("/directories/" + kind, revision);
+  const scent = kind === "scents";
+  const title = scent
+    ? "Mùi hương"
+    : kind === "customer-groups"
+      ? "Nhóm khách hàng"
+      : "Nhóm sản phẩm";
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await api(
+        "/directories/" + kind + (edit!.id ? "/" + edit!.id : ""),
+        edit!.id ? "PUT" : "POST",
+        {
+          ...edit,
+          sortOrder: Number(edit!.sort_order || 0),
+          topNotes: edit!.top_notes || "",
+          middleNotes: edit!.middle_notes || "",
+          baseNotes: edit!.base_notes || "",
+        },
+      );
+      setEdit(null);
+      refresh();
+      tell("Đã lưu " + title.toLowerCase() + ".");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      <div className="tabs">
+        {[
+          ["product-categories", "Nhóm sản phẩm"],
+          ["customer-groups", "Nhóm khách hàng"],
+          ["scents", "Mùi hương"],
+        ].map(([k, v]) => (
+          <button
+            key={k}
+            className={kind === k ? "active" : ""}
+            onClick={() => setKind(k)}
+          >
+            {v}
+          </button>
+        ))}
+      </div>
+      <div className="toolbar">
+        <p className="muted">
+          {data?.length || 0} mục · Ngừng sử dụng để giữ lịch sử liên kết.
+        </p>
+        <TransferBar key={kind} kind={kind} refresh={refresh} tell={tell} />
+        <button
+          className="primary"
+          onClick={() => {
+            setError("");
+            setEdit({
+              name: "",
+              code: "",
+              sort_order: 0,
+              active: true,
+              meaning: "",
+              top_notes: "",
+              middle_notes: "",
+              base_notes: "",
+              ritual: "",
+            });
+          }}
+        >
+          + Thêm {title.toLowerCase()}
+        </button>
+      </div>
+      <ErrorBox error={loadError} />
+      <section className="panel table-wrap" aria-busy={loading}>
+        {loading && <Loading />}
+        <table>
+          <thead>
+            <tr>
+              {!scent && <th>Mã</th>}
+              <th>Tên</th>
+              <th>{scent ? "Ý nghĩa" : "Thứ tự"}</th>
+              <th>Trạng thái</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {data?.map((r) => (
+              <tr key={r.id}>
+                {!scent && <td className="code">{r.code}</td>}
+                <td>
+                  <strong>{r.name}</strong>
+                </td>
+                <td>{scent ? r.meaning : r.sort_order}</td>
+                <td>
+                  <span
+                    className={
+                      "badge " + (r.active ? "completed" : "cancelled")
+                    }
+                  >
+                    {r.active ? "Đang dùng" : "Ngừng dùng"}
+                  </span>
+                </td>
+                <td>
+                  <button
+                    className="ghost"
+                    onClick={() => {
+                      setError("");
+                      setEdit({ ...r });
+                    }}
+                  >
+                    Chỉnh sửa
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!loading && !data?.length && <Empty text="Chưa có danh mục." />}
+      </section>
+      {edit && (
+        <Modal
+          title={(edit.id ? "Sửa " : "Thêm ") + title.toLowerCase()}
+          close={() => setEdit(null)}
+        >
+          <form onSubmit={save}>
+            <div className="form-grid">
+              {!scent && (
+                <Field label="Mã danh mục">
+                  <input
+                    required
+                    maxLength={40}
+                    value={edit.code}
+                    onChange={(e) => setEdit({ ...edit, code: e.target.value })}
+                  />
+                </Field>
+              )}
+              <Field label="Tên">
+                <input
+                  required
+                  maxLength={scent ? 180 : 120}
+                  value={edit.name}
+                  onChange={(e) => setEdit({ ...edit, name: e.target.value })}
+                />
+              </Field>
+              {!scent && (
+                <Field label="Thứ tự">
+                  <input
+                    required
+                    type="number"
+                    min={0}
+                    max={100000}
+                    value={edit.sort_order}
+                    onChange={(e) =>
+                      setEdit({ ...edit, sort_order: e.target.value })
+                    }
+                  />
+                </Field>
+              )}
+            </div>
+            {scent &&
+              [
+                ["meaning", "Ý nghĩa"],
+                ["top_notes", "Hương đầu"],
+                ["middle_notes", "Hương giữa"],
+                ["base_notes", "Hương cuối"],
+                ["ritual", "Vai trò ritual"],
+              ].map(([k, v]) => (
+                <Field key={k} label={v}>
+                  <textarea
+                    maxLength={1000}
+                    value={edit[k]}
+                    onChange={(e) => setEdit({ ...edit, [k]: e.target.value })}
+                  />
+                </Field>
+              ))}
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={edit.active}
+                onChange={(e) => setEdit({ ...edit, active: e.target.checked })}
+              />
+              Đang sử dụng
+            </label>
+            <ErrorBox error={error} />
+            <div className="form-actions">
+              <button className="primary" disabled={busy}>
+                Lưu danh mục
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </>
+  );
 }

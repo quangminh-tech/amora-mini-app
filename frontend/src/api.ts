@@ -15,7 +15,8 @@ export type User = {
   mustChangePassword: boolean;
 };
 export type Row = Record<string, any>;
-const base = (import.meta as any).env.VITE_API_URL?.trim().replace(/\/$/, "") || "";
+const base =
+  (import.meta as any).env.VITE_API_URL?.trim().replace(/\/$/, "") || "";
 export const token = () => sessionStorage.getItem("amora-token");
 export async function request(path: string, options: RequestInit = {}) {
   const headers = new Headers(options.headers);
@@ -23,6 +24,9 @@ export async function request(path: string, options: RequestInit = {}) {
   if (options.body && !(options.body instanceof FormData))
     headers.set("Content-Type", "application/json");
   const controller = new AbortController();
+  const abort = () => controller.abort();
+  options.signal?.addEventListener("abort", abort, { once: true });
+  if (options.signal?.aborted) controller.abort();
   const timeout = setTimeout(() => controller.abort(), 90000);
   try {
     const res = await fetch(base + "/api" + path, {
@@ -58,10 +62,17 @@ export async function request(path: string, options: RequestInit = {}) {
     throw e;
   } finally {
     clearTimeout(timeout);
+    options.signal?.removeEventListener("abort", abort);
   }
 }
-export const api = async (path: string, method = "GET", data?: unknown) => {
+export const api = async (
+  path: string,
+  method = "GET",
+  data?: unknown,
+  options: RequestInit = {},
+) => {
   const r = await request(path, {
+    ...options,
     method,
     ...(data !== undefined ? { body: JSON.stringify(data) } : {}),
   });

@@ -1,8 +1,245 @@
-import React,{useState,FormEvent} from 'react';import {Common} from '../types';import {api,Row} from '../api';import {useLoad,useDebounced,Pagination,Field,Modal,ErrorBox,Empty} from '../components/UI';import {TransferBar} from '../components/Transfer';
-export function Customers({user,revision,refresh,tell}:Common){
- const [search,setSearch]=useState(''),[group,setGroup]=useState(''),[page,setPage]=useState(1),[edit,setEdit]=useState<Row|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false);const term=useDebounced(search),phone=useDebounced(edit?.phone||'');
- const {data:groups}=useLoad<Row[]>('/directories/customer-groups',revision),{data:d,error:loadError}=useLoad<Row>(`/customers?page=${page}&search=${encodeURIComponent(term)}&group=${group}`,revision),{data:duplicates}=useLoad<Row[]>('/customers/duplicates?phone='+encodeURIComponent(phone),revision);
- async function save(e:FormEvent){e.preventDefault();setBusy(true);setError('');try{await api('/customers'+(edit!.id?'/'+edit!.id:''),edit!.id?'PUT':'POST',{...edit,groupId:edit!.group_id});setEdit(null);refresh();tell('Đã lưu thông tin khách.')}catch(e){setError((e as Error).message)}finally{setBusy(false)}}
- return <><div className="toolbar"><div className="search"><input aria-label="Tìm khách" placeholder="Tên, điện thoại, email, công ty…" value={search} onChange={e=>{setSearch(e.target.value);setPage(1)}}/></div><select aria-label="Nhóm khách" value={group} onChange={e=>{setGroup(e.target.value);setPage(1)}}><option value="">Mọi nhóm khách</option>{groups?.map(g=><option key={g.id} value={g.code}>{g.name}</option>)}</select><TransferBar kind="customers" filters={{search:term,group}} refresh={refresh} tell={tell}/><button className="primary" onClick={()=>{setError('');setEdit({name:'',phone:'',email:'',company:'',address:'',note:'',group_id:'00000000-0000-0000-0000-000000000001'})}}>+ Thêm khách</button></div><p className="muted">Thông tin liên hệ và phân loại để lập báo giá / giao hàng. CTV chỉ xem khách do mình tạo.</p><ErrorBox error={loadError}/><section className="panel table-wrap"><table><thead><tr><th>Khách hàng</th><th>Điện thoại</th><th>Nhóm khách</th><th>Công ty / Email</th>{user.role==='manager'&&<th>CTV phụ trách</th>}<th>Địa chỉ</th><th/></tr></thead><tbody>{d?.items.map((r:Row)=><tr key={r.id}><td><strong>{r.name}</strong></td><td>{r.phone||'—'}</td><td><span className="badge">{r.group_name}</span></td><td>{r.company||'—'}<small className="muted block">{r.email}</small></td>{user.role==='manager'&&<td>{r.owner_name}</td>}<td className="wrap-cell">{r.address||'—'}</td><td><button className="ghost" onClick={()=>{setError('');setEdit({...r})}}>Sửa</button></td></tr>)}</tbody></table>{d?.total===0&&<Empty text="Không có khách phù hợp. Thêm khách hoặc nhập danh sách Excel."/>}</section><Pagination data={d} page={page} setPage={setPage}/>
- {edit&&<Modal title={edit.id?'Sửa thông tin khách':'Thêm thông tin khách'} close={()=>setEdit(null)}><form onSubmit={save}><div className="form-grid">{[['name','Tên khách / người nhận',180],['phone','Điện thoại',40],['email','Email',200],['company','Công ty',300]].map(([k,v,max])=><Field key={k} label={String(v)}><input required={k==='name'} type={k==='email'?'email':k==='phone'?'tel':'text'} maxLength={Number(max)} value={edit[k]} onChange={e=>setEdit({...edit,[k]:e.target.value})}/></Field>)}<Field label="Nhóm khách"><select required value={edit.group_id} onChange={e=>setEdit({...edit,group_id:e.target.value})}>{groups?.filter(g=>g.active||g.id===edit.group_id).map(g=><option key={g.id} value={g.id}>{g.name}</option>)}</select></Field></div>{phone&&duplicates?.some(r=>r.id!==edit.id)&&<p className="notice">Số điện thoại này đã có trong danh sách bạn được xem: {duplicates.filter(r=>r.id!==edit.id).map(r=>r.name).join(', ')}. Kiểm tra trước khi lưu; doanh nghiệp có thể dùng chung số.</p>}<Field label="Địa chỉ"><textarea maxLength={1000} value={edit.address} onChange={e=>setEdit({...edit,address:e.target.value})}/></Field><Field label="Ghi chú ngắn"><textarea maxLength={1000} value={edit.note} onChange={e=>setEdit({...edit,note:e.target.value})}/></Field><ErrorBox error={error}/><div className="form-actions"><button className="primary" disabled={busy}>Lưu thông tin</button></div></form></Modal>}</>;
+import { Loading } from "../components/UI";
+import React, { useState, FormEvent } from "react";
+import { Common } from "../types";
+import { api, Row } from "../api";
+import {
+  useLoad,
+  useDebounced,
+  Pagination,
+  Field,
+  Modal,
+  ErrorBox,
+  Empty,
+} from "../components/UI";
+import { TransferBar } from "../components/Transfer";
+export function Customers({ user, revision, refresh, tell }: Common) {
+  const [search, setSearch] = useState(""),
+    [group, setGroup] = useState(""),
+    [page, setPage] = useState(1),
+    [edit, setEdit] = useState<Row | null>(null),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(false);
+  const term = useDebounced(search),
+    phone = useDebounced(edit?.phone || "");
+  const { data: groups } = useLoad<Row[]>(
+      "/directories/customer-groups",
+      revision,
+    ),
+    {
+      data: d,
+      error: loadError,
+      loading,
+    } = useLoad<Row>(
+      `/customers?page=${page}&search=${encodeURIComponent(term)}&group=${group}`,
+      revision,
+    ),
+    { data: duplicates } = useLoad<Row[]>(
+      "/customers/duplicates?phone=" + encodeURIComponent(phone),
+      revision,
+    );
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await api(
+        "/customers" + (edit!.id ? "/" + edit!.id : ""),
+        edit!.id ? "PUT" : "POST",
+        { ...edit, groupId: edit!.group_id },
+      );
+      setEdit(null);
+      refresh();
+      tell("Đã lưu thông tin khách.");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      <div className="toolbar">
+        <div className="search">
+          <input
+            aria-label="Tìm khách"
+            placeholder="Tên, điện thoại, email, công ty…"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+          />
+        </div>
+        <select
+          aria-label="Nhóm khách"
+          value={group}
+          onChange={(e) => {
+            setGroup(e.target.value);
+            setPage(1);
+          }}
+        >
+          <option value="">Mọi nhóm khách</option>
+          {groups?.map((g) => (
+            <option key={g.id} value={g.code}>
+              {g.name}
+            </option>
+          ))}
+        </select>
+        <TransferBar
+          kind="customers"
+          filters={{ search: term, group }}
+          refresh={refresh}
+          tell={tell}
+        />
+        <button
+          className="primary"
+          onClick={() => {
+            setError("");
+            setEdit({
+              name: "",
+              phone: "",
+              email: "",
+              company: "",
+              address: "",
+              note: "",
+              group_id: "00000000-0000-0000-0000-000000000001",
+            });
+          }}
+        >
+          + Thêm khách
+        </button>
+      </div>
+      <p className="muted">
+        Thông tin liên hệ và phân loại để lập báo giá / giao hàng. CTV chỉ xem
+        khách do mình tạo.
+      </p>
+      <ErrorBox error={loadError} />
+      <section className="panel table-wrap" aria-busy={loading}>
+        {loading && <Loading />}
+        <table>
+          <thead>
+            <tr>
+              <th>Khách hàng</th>
+              <th>Điện thoại</th>
+              <th>Nhóm khách</th>
+              <th>Công ty / Email</th>
+              {user.role === "manager" && <th>CTV phụ trách</th>}
+              <th>Địa chỉ</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {d?.items.map((r: Row) => (
+              <tr key={r.id}>
+                <td>
+                  <strong>{r.name}</strong>
+                </td>
+                <td>{r.phone || "—"}</td>
+                <td>
+                  <span className="badge">{r.group_name}</span>
+                </td>
+                <td>
+                  {r.company || "—"}
+                  <small className="muted block">{r.email}</small>
+                </td>
+                {user.role === "manager" && <td>{r.owner_name}</td>}
+                <td className="wrap-cell">{r.address || "—"}</td>
+                <td>
+                  <button
+                    className="ghost"
+                    onClick={() => {
+                      setError("");
+                      setEdit({ ...r });
+                    }}
+                  >
+                    Sửa
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {d?.total === 0 && (
+          <Empty text="Không có khách phù hợp. Thêm khách hoặc nhập danh sách Excel." />
+        )}
+      </section>
+      <Pagination loading={loading} data={d} page={page} setPage={setPage} />
+      {edit && (
+        <Modal
+          title={edit.id ? "Sửa thông tin khách" : "Thêm thông tin khách"}
+          close={() => setEdit(null)}
+        >
+          <form onSubmit={save}>
+            <div className="form-grid">
+              {[
+                ["name", "Tên khách / người nhận", 180],
+                ["phone", "Điện thoại", 40],
+                ["email", "Email", 200],
+                ["company", "Công ty", 300],
+              ].map(([k, v, max]) => (
+                <Field key={k} label={String(v)}>
+                  <input
+                    required={k === "name"}
+                    type={
+                      k === "email" ? "email" : k === "phone" ? "tel" : "text"
+                    }
+                    maxLength={Number(max)}
+                    value={edit[k]}
+                    onChange={(e) => setEdit({ ...edit, [k]: e.target.value })}
+                  />
+                </Field>
+              ))}
+              <Field label="Nhóm khách">
+                <select
+                  required
+                  value={edit.group_id}
+                  onChange={(e) =>
+                    setEdit({ ...edit, group_id: e.target.value })
+                  }
+                >
+                  {groups
+                    ?.filter((g) => g.active || g.id === edit.group_id)
+                    .map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                      </option>
+                    ))}
+                </select>
+              </Field>
+            </div>
+            {phone && duplicates?.some((r) => r.id !== edit.id) && (
+              <p className="notice">
+                Số điện thoại này đã có trong danh sách bạn được xem:{" "}
+                {duplicates
+                  .filter((r) => r.id !== edit.id)
+                  .map((r) => r.name)
+                  .join(", ")}
+                . Kiểm tra trước khi lưu; doanh nghiệp có thể dùng chung số.
+              </p>
+            )}
+            <Field label="Địa chỉ">
+              <textarea
+                maxLength={1000}
+                value={edit.address}
+                onChange={(e) => setEdit({ ...edit, address: e.target.value })}
+              />
+            </Field>
+            <Field label="Ghi chú ngắn">
+              <textarea
+                maxLength={1000}
+                value={edit.note}
+                onChange={(e) => setEdit({ ...edit, note: e.target.value })}
+              />
+            </Field>
+            <ErrorBox error={error} />
+            <div className="form-actions">
+              <button className="primary" disabled={busy}>
+                Lưu thông tin
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </>
+  );
 }

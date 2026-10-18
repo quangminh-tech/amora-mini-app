@@ -1,3 +1,5 @@
+> Bản3.2: thêm migration004/005, không thêm biến môi trường. Xem DOCUMENTS-3.2.md trước khi cập nhật.
+
 # Triển khai AMORA Mini
 
 Bản **3.0** đã được rà soát lại theo từng nền tảng; đọc thêm [CLOUD-REVIEW.md](CLOUD-REVIEW.md). Thứ tự: GitHub → Neon → R2 → Render → Pages → cập nhật CORS Render theo Pages URL thực tế.
@@ -70,7 +72,7 @@ R2 Standard có quota miễn phí 10 GB-month, 1 triệu Class A requests/tháng
 
 `AllowedOrigins` không có dấu `/` ở cuối. Nhiều origin cách bằng dấu phẩy; chỉ điền domain bạn kiểm soát. Nếu dùng domain riêng, thêm origin chính xác vào đây. Backend không dùng cookie cross-site; xác thực qua Authorization Bearer.
 
-Deploy, chờ build/publish hoàn tất và mở `https://YOUR_SERVICE.onrender.com/health`. Kết quả mong đợi có `status: ok`, `service: amora-mini`, `version: 3.0.0`. `/health` kiểm tra tiến trình, **không truy vấn SQL**, để kiểm tra định kỳ không giữ Neon thức. Startup hoàn thành migration/seed trước khi mở cổng. Khi đã đăng nhập, vào **Thiết lập → Kiểm tra dữ liệu** để kiểm tra DB hiện thời; **Kiểm tra kho ảnh** sẽ PUT/GET/DELETE một tệp nhỏ rồi dọn tệp. Nếu 500 hoặc crash: đọc log, kiểm tra connection string, mạng Neon, Bootstrap và migration. Không paste log chứa bí mật lên nơi công khai.
+Deploy, chờ build/publish hoàn tất và mở `https://YOUR_SERVICE.onrender.com/health`. Kết quả mong đợi có `status: ok`, `service: amora-mini`, `version: 3.2.0`. `/health` kiểm tra tiến trình, **không truy vấn SQL**, để kiểm tra định kỳ không giữ Neon thức. Startup hoàn thành migration/seed trước khi mở cổng. Khi đã đăng nhập, vào **Thiết lập → Kiểm tra dữ liệu** để kiểm tra DB hiện thời; **Kiểm tra kho ảnh** sẽ PUT/GET/DELETE một tệp nhỏ rồi dọn tệp. Nếu 500 hoặc crash: đọc log, kiểm tra connection string, mạng Neon, Bootstrap và migration. Không paste log chứa bí mật lên nơi công khai.
 
 Sau lần tạo quản lý đầu tiên, đăng nhập và đổi mật khẩu. Có thể xóa Bootstrap password khỏi env; ứng dụng không cần nó nếu đã có user. Khi tạo database mới hoàn toàn, cần cung cấp Bootstrap lại. Không có cách đặt lại mật khẩu bằng thay Bootstrap cho database đang có dữ liệu.
 

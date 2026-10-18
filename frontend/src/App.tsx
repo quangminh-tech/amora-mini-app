@@ -1,3 +1,4 @@
+import { DocumentTemplates } from "./pages/DocumentTemplates";
 import React, { useEffect, useState, FormEvent, ReactNode } from "react";
 import {
   ApiError,
@@ -31,13 +32,14 @@ const routes = [
   ["commissions", "Hoa hồng"],
   ["customers", "Khách hàng"],
   ["directories", "Danh mục dùng chung"],
+  ["templates", "Mẫu chứng từ"],
   ["settings", "Thiết lập"],
 ] as const;
 export default function App() {
   const [user, setUser] = useState<User | null>(null),
     [loading, setLoading] = useState(!!token()),
     [page, setPage] = useState("dashboard"),
-    [recordId,setRecordId]=useState<string|undefined>(undefined),
+    [recordId, setRecordId] = useState<string | undefined>(undefined),
     [menu, setMenu] = useState(false),
     [revision, setRevision] = useState(0),
     [toast, setToast] = useState(""),
@@ -135,8 +137,12 @@ export default function App() {
       </div>
     );
   const manager = user.role === "manager";
-  const launch=(page:string,id?:string)=>{setRecordId(id);setPage(page);setMenu(false)};
-  const common = { user, revision, refresh, tell,recordId,launch };
+  const launch = (page: string, id?: string) => {
+    setRecordId(id);
+    setPage(page);
+    setMenu(false);
+  };
+  const common = { user, revision, refresh, tell, recordId, launch };
   return (
     <div className="app">
       <aside className={menu ? "sidebar open" : "sidebar"}>
@@ -148,14 +154,23 @@ export default function App() {
         <nav>
           {routes
             .filter(
-              ([k]) => manager || !["users", "settings", "prices", "directories"].includes(k),
+              ([k]) =>
+                manager ||
+                ![
+                  "users",
+                  "settings",
+                  "prices",
+                  "directories",
+                  "templates",
+                ].includes(k),
             )
             .map(([key, label]) => (
               <button
                 key={key}
                 className={page === key ? "active" : ""}
                 onClick={() => {
-                  setRecordId(undefined);setPage(key);
+                  setRecordId(undefined);
+                  setPage(key);
                   setMenu(false);
                 }}
               >
@@ -241,6 +256,7 @@ export default function App() {
           )}
           {page === "commissions" && <Commissions {...common} />}
           {page === "users" && manager && <Users {...common} />}
+          {page === "templates" && manager && <DocumentTemplates {...common} />}
           {page === "settings" && manager && <Settings {...common} />}
           {page === "directories" && manager && <Directories {...common} />}
           <footer className="workspace-footer">
