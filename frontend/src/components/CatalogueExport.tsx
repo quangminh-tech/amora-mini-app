@@ -1,3 +1,4 @@
+import { loadPdfImages } from "../pdfImages";
 import React, { useEffect, useState } from "react";
 import { api, request, Row, downloadBlob, money } from "../api";
 import { Modal, Field, ErrorBox, Loading, ProductImage } from "./UI";
@@ -56,46 +57,7 @@ export function CatalogueExport({
     };
   }, [channel, ids.join(",")]);
   async function images() {
-    const result: Record<string, Uint8Array> = {};
-    let missing = 0;
-    for (let i = 0; i < data!.products.length; i++) {
-      const product = data!.products[i];
-      setProgress(`Đang chuẩn bị ảnh ${i + 1}/${data!.products.length}…`);
-      if (!product.image_id) {
-        missing++;
-        continue;
-      }
-      try {
-        const response = await request("/images/" + product.image_id);
-        const blob = await response!.blob();
-        const bitmap = await createImageBitmap(blob);
-        const scale = Math.min(1, 640 / Math.max(bitmap.width, bitmap.height));
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-        canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-        const context = canvas.getContext("2d");
-        if (!context) throw new Error("Không xử lý được ảnh.");
-        context.fillStyle = "#ffffff";
-        context.fillRect(0, 0, canvas.width, canvas.height);
-        context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-        bitmap.close();
-        const jpg = await new Promise<Blob>((resolve, reject) =>
-          canvas.toBlob(
-            (b) =>
-              b ? resolve(b) : reject(new Error("Không xử lý được ảnh.")),
-            "image/jpeg",
-            0.82,
-          ),
-        );
-        result[product.id] = new Uint8Array(await jpg.arrayBuffer());
-        canvas.width = 1;
-        canvas.height = 1;
-      } catch (e) {
-        if ((e as any).status === 401 || (e as any).status === 403) throw e;
-        missing++;
-      }
-    }
-    return { result, missing };
+    return loadPdfImages(data!.products, setProgress);
   }
   async function exportPdf() {
     if (!data) return;

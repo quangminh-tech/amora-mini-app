@@ -1,8 +1,22 @@
+import { loadQuoteImages } from "./pdfImages";
 import { renderDocument } from "./documentTemplates";
 import { PDFDocument, rgb, PDFFont, PDFPage, PDFImage } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import { Row, money, date, parse, downloadBlob } from "./api";
-export async function exportQuote(record: Row, lines: Row[]) {
+export type QuotePdfOptions = {
+  showImages?: boolean;
+  images?: Record<string, Uint8Array>;
+  progress?: (message: string) => void;
+};
+export async function createQuotePdf(
+  record: Row,
+  lines: Row[],
+  options: QuotePdfOptions = {},
+) {
+  const showImages = options.showImages !== false;
+  const photos = options.images || {};
+  let missingImages = 0;
+
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
   const response = await fetch("/fonts/DejaVuSans.ttf");
@@ -26,7 +40,8 @@ export async function exportQuote(record: Row, lines: Row[]) {
   const width = 595.28,
     margin = 42,
     brown = rgb(0.28, 0.25, 0.2),
-    muted = rgb(0.46, 0.45, 0.41);
+    muted = rgb(0.46, 0.45, 0.41),
+    burgundy = rgb(0.42, 0.19, 0.24);
   const text = (
     value: string,
     x: number,
@@ -100,12 +115,19 @@ export async function exportQuote(record: Row, lines: Row[]) {
       y: y - 23,
       width: 511,
       height: 25,
-      color: rgb(0.93, 0.91, 0.86),
+      color: burgundy,
     });
-    text("Sản phẩm / quy cách", margin + 8, y - 15, 9);
-    text("SL", 300, y - 15, 9);
-    text("Đơn giá", 348, y - 15, 9);
-    text("Thành tiền", 454, y - 15, 9);
+    if (showImages) text("Hình ảnh", margin + 8, y - 15, 8, rgb(1, 1, 1));
+    text(
+      "Sản phẩm / quy cách",
+      showImages ? 116 : margin + 8,
+      y - 15,
+      9,
+      rgb(1, 1, 1),
+    );
+    text("SL", 312, y - 15, 9, rgb(1, 1, 1));
+    text("Đơn giá", 354, y - 15, 9, rgb(1, 1, 1));
+    text("Thành tiền", 454, y - 15, 9, rgb(1, 1, 1));
     y -= 36;
   }
   newPage();
@@ -135,7 +157,27 @@ export async function exportQuote(record: Row, lines: Row[]) {
   );
   y -= 14;
   tableHead();
-  for (const line of lines) {
+  const embedded = new Map<string, PDFImage | null>();
+  for (const [lineIndex, line] of lines.entries()) {
+    const id = String(line.product_id || line.productId || "");
+    let photo: PDFImage | null = null;
+    if (showImages && id && photos[id]) {
+      if (embedded.has(id)) photo = embedded.get(id)!;
+      else {
+        try {
+          const bytes = photos[id];
+          photo =
+            bytes[0] === 0x89 && bytes[1] === 0x50
+              ? await doc.embedPng(bytes)
+              : await doc.embedJpg(bytes);
+        } catch {
+          photo = null;
+        }
+        embedded.set(id, photo);
+      }
+    }
+    if (showImages && !photo) missingImages++;
+    const nameX = showImages ? 116 : margin + 8;
     const names = wrap(
       line.product_name +
         "\n" +
@@ -143,27 +185,89 @@ export async function exportQuote(record: Row, lines: Row[]) {
         " · " +
         line.unit +
         (line.lead_days_min != null
-          ? `\nChuẩn bị: ${line.lead_days_min}–${line.lead_days_max} ngày`
+          ? `\nChuẩn bị: ${line.lead_days_min}-${line.lead_days_max} ngày`
           : ""),
-      240,
+      showImages ? 180 : 244,
       9,
     );
-    const h = Math.max(34, names.length * 14 + 10);
-    if (y - h < 65) {
-      newPage();
-      tableHead();
+    let offset = 0;
+    let first = true;
+    while (offset < names.length) {
+      const available = y - 65;
+      const fullHeight = Math.max(
+        first && showImages ? 82 : 34,
+        (names.length - offset) * 14 + 14,
+      );
+      const canKeepTogether = fullHeight <= 607;
+      const startHeight = first && showImages ? 82 : 34;
+      if (
+        ((canKeepTogether && fullHeight > available) ||
+          available < startHeight ||
+          (lineIndex === lines.length - 1 &&
+            fullHeight < 500 &&
+            fullHeight + 100 > available)) &&
+        y < 650
+      ) {
+        newPage();
+        tableHead();
+      }
+      const capacity = Math.max(1, Math.floor((y - 65 - 14) / 14));
+      const part = names.slice(offset, offset + capacity);
+      const height = Math.max(
+        first && showImages ? 82 : 34,
+        part.length * 14 + 14,
+      );
+      if (y - height < 65) {
+        newPage();
+        tableHead();
+        continue;
+      }
+      part.forEach((name, i) => text(name, nameX, y - i * 14, 9));
+      if (first) {
+        if (showImages) {
+          const boxX = margin + 8,
+            boxTop = y + 7,
+            box = 56;
+          page.drawRectangle({
+            x: boxX,
+            y: boxTop - box,
+            width: box,
+            height: box,
+            color: rgb(0.97, 0.95, 0.92),
+          });
+          if (photo) {
+            const size = photo.scale(
+              Math.min((box - 4) / photo.width, (box - 4) / photo.height),
+            );
+            page.drawImage(photo, {
+              x: boxX + (box - size.width) / 2,
+              y: boxTop - box + (box - size.height) / 2,
+              width: size.width,
+              height: size.height,
+            });
+          } else {
+            for (const [i, value] of ["Chưa có", "ảnh"].entries())
+              text(value, boxX + 7, boxTop - 23 - i * 12, 7, muted);
+          }
+        }
+        text(String(line.qty), 312, y, 9);
+        right(money(line.unit_price), 438, y, 88);
+        right(money(line.amount), 547, y, 99);
+      }
+      y -= height;
+      page.drawLine({
+        start: { x: margin, y: y + 10 },
+        end: { x: 553, y: y + 10 },
+        thickness: 0.4,
+        color: rgb(0.85, 0.83, 0.79),
+      });
+      offset += part.length;
+      first = false;
+      if (offset < names.length) {
+        newPage();
+        tableHead();
+      }
     }
-    names.forEach((name, i) => text(name, margin + 8, y - i * 14, 9));
-    text(String(line.qty), 300, y, 9);
-    right(money(line.unit_price), 438, y, 91);
-    right(money(line.amount), 547, y, 99);
-    y -= h;
-    page.drawLine({
-      start: { x: margin, y: y + 14 },
-      end: { x: 553, y: y + 14 },
-      thickness: 0.4,
-      color: rgb(0.85, 0.83, 0.79),
-    });
   }
   ensure(100);
   y -= 12;
@@ -206,8 +310,27 @@ export async function exportQuote(record: Row, lines: Row[]) {
   );
   doc.setTitle("Báo giá " + record.code + " — AMORA STUDIO");
   const bytes = await doc.save();
+  return { bytes, missingImages };
+}
+
+export async function exportQuote(
+  record: Row,
+  lines: Row[],
+  options: QuotePdfOptions = {},
+) {
+  let images = options.images;
+  if (options.showImages !== false && !images) {
+    options.progress?.("Đang lấy ảnh sản phẩm…");
+    images = (await loadQuoteImages(lines, options.progress)).result;
+  }
+  options.progress?.("Đang tạo báo giá PDF…");
+  const { bytes, missingImages } = await createQuotePdf(record, lines, {
+    ...options,
+    images,
+  });
   downloadBlob(
     new Blob([new Uint8Array(bytes)], { type: "application/pdf" }),
     record.code + ".pdf",
   );
+  return { missingImages };
 }

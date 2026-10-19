@@ -122,6 +122,8 @@ export function SalesPage({
   const pricing = pricingState?.key === pricingKey ? pricingState.result : null;
   const pricingError =
     pricingState?.key === pricingKey ? pricingState.error : "";
+  const [pdfImages, setPdfImages] = useState(true),
+    [pdfProgress, setPdfProgress] = useState("");
   const [productSearch, setProductSearch] = useState("");
   const productTerm = useDebounced(productSearch);
   const selectedProductIds = (form?.lines || [])
@@ -1004,25 +1006,47 @@ export function SalesPage({
                 </button>
               )}
             {quote && (
-              <button
-                className="primary"
-                disabled={busy}
-                onClick={async () => {
-                  setBusy(true);
-                  try {
-                    await (
-                      await import("../pdf")
-                    ).exportQuote(detail.record, detail.lines);
-                    tell("Đã xuất PDF.");
-                  } catch (e) {
-                    setErr((e as Error).message);
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-              >
-                Tải báo giá PDF ↓
-              </button>
+              <>
+                <label className="quote-photo-option">
+                  <input
+                    type="checkbox"
+                    checked={pdfImages}
+                    disabled={busy}
+                    onChange={(e) => setPdfImages(e.target.checked)}
+                  />{" "}
+                  Kèm ảnh sản phẩm trong PDF
+                </label>
+                <button
+                  className="primary"
+                  disabled={busy}
+                  onClick={async () => {
+                    setBusy(true);
+                    setErr("");
+                    setPdfProgress("Đang chuẩn bị báo giá…");
+                    try {
+                      const result = await (
+                        await import("../pdf")
+                      ).exportQuote(detail.record, detail.lines, {
+                        showImages: pdfImages,
+                        progress: setPdfProgress,
+                      });
+                      const message = result.missingImages
+                        ? `Đã xuất PDF; ${result.missingImages} sản phẩm chưa có hoặc không tải được ảnh. Kiểm tra trước khi gửi khách.`
+                        : "Đã xuất báo giá PDF.";
+                      tell(message);
+                      if (result.missingImages) setErr(message);
+                    } catch (e) {
+                      setErr((e as Error).message);
+                    } finally {
+                      setBusy(false);
+                      setPdfProgress("");
+                    }
+                  }}
+                >
+                  Tải báo giá PDF ↓
+                </button>
+                {pdfProgress && <Loading label={pdfProgress} />}
+              </>
             )}
             {!quote &&
               manager &&

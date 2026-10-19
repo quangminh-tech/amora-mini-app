@@ -1461,3 +1461,5 @@ input[type=checkbox] { accent-color:var(--accent); }
  .ctv-middle{min-height:0;}.ctv-middle>.panel{min-height:0;overflow:auto;}
  .ctv-stats .ctv-stat{overflow:auto;}.ctv-recent{min-height:0;}
 }
+
+.quote-photo-option { display:flex; align-items:center; gap:8px; margin:8px 12px 8px 0; color:#6b303c; }
