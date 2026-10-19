@@ -124,6 +124,34 @@ export function SalesPage({
     pricingState?.key === pricingKey ? pricingState.error : "";
   const [pdfImages, setPdfImages] = useState(true),
     [pdfProgress, setPdfProgress] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<Row | null>(null),
+    [deleteError, setDeleteError] = useState("");
+  async function deleteDraft() {
+    if (!deleteTarget) return;
+    setBusy(true);
+    setDeleteError("");
+    try {
+      await api(
+        `/quotes/${deleteTarget.id}?version=${deleteTarget.version}`,
+        "DELETE",
+      );
+      if (detail?.record.id === deleteTarget.id) setDetail(null);
+      if (page > 1 && rows?.length === 1 && rows[0].id === deleteTarget.id)
+        setPage(page - 1);
+      setDeleteTarget(null);
+      refresh();
+      tell("Đã xóa bản nháp báo giá.");
+    } catch (e) {
+      setDeleteError((e as Error).message);
+      refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+  function confirmDelete(record: Row) {
+    setDeleteError("");
+    setDeleteTarget(record);
+  }
   const [productSearch, setProductSearch] = useState("");
   const productTerm = useDebounced(productSearch);
   const selectedProductIds = (form?.lines || [])
@@ -383,6 +411,17 @@ export function SalesPage({
                     >
                       Xem →
                     </button>
+                    {quote &&
+                      r.status === "draft" &&
+                      (manager || settings?.ctvQuotes) && (
+                        <button
+                          className="ghost danger"
+                          disabled={busy}
+                          onClick={() => confirmDelete(r)}
+                        >
+                          Xóa bản nháp
+                        </button>
+                      )}
                   </td>
                 </tr>
               ))}
@@ -1005,6 +1044,19 @@ export function SalesPage({
                   Chỉnh sửa
                 </button>
               )}
+            {quote &&
+              detail.record.status === "draft" &&
+              !detail.orderId &&
+              (manager || settings?.ctvQuotes) && (
+                <button
+                  type="button"
+                  className="ghost danger"
+                  disabled={busy}
+                  onClick={() => confirmDelete(detail.record)}
+                >
+                  Xóa bản nháp
+                </button>
+              )}
             {quote && (
               <>
                 <label className="quote-photo-option">
@@ -1232,6 +1284,42 @@ export function SalesPage({
               })}
             </div>
           )}
+        </Modal>
+      )}
+      {deleteTarget && (
+        <Modal
+          title="Xóa bản nháp báo giá?"
+          close={() => {
+            if (!busy) setDeleteTarget(null);
+          }}
+        >
+          <p>
+            Bạn đang xóa bản nháp <strong>{deleteTarget.code}</strong>.
+          </p>
+          <p className="notice">
+            Thao tác này xóa báo giá và các dòng sản phẩm của bản nháp. Khách
+            hàng, sản phẩm và bảng giá vẫn được giữ. Không có nút hoàn tác.
+          </p>
+          <ErrorBox error={deleteError} />
+          {busy && <Loading label="Đang xóa bản nháp…" />}
+          <div className="form-actions">
+            <button
+              type="button"
+              className="secondary"
+              disabled={busy}
+              onClick={() => setDeleteTarget(null)}
+            >
+              Giữ lại
+            </button>
+            <button
+              type="button"
+              className="primary"
+              disabled={busy}
+              onClick={() => void deleteDraft()}
+            >
+              Xóa bản nháp
+            </button>
+          </div>
         </Modal>
       )}
     </>
