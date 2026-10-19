@@ -1,3 +1,4 @@
+import { CtvDashboard } from "./CtvDashboard";
 import React, { useState } from "react";
 import { Common } from "../types";
 import { Row, money, date, labels } from "../api";
@@ -36,7 +37,7 @@ export function Dashboard({
     { data: users } = useLoad<Row[]>(
       manager
         ? "/admin/users?pageSize=30&search=" + encodeURIComponent(term)
-        : "/scents",
+        : null,
       revision,
     );
   const cards = d
@@ -69,6 +70,22 @@ export function Dashboard({
         },
       ]
     : [];
+  if (!manager)
+    return (
+      <CtvDashboard
+        user={user}
+        data={d}
+        error={error}
+        loading={loading}
+        from={from}
+        to={to}
+        setFrom={setFrom}
+        setTo={setTo}
+        navigate={navigate}
+        launch={launch}
+        revision={revision}
+      />
+    );
   return (
     <>
       <div className="overview-heading">

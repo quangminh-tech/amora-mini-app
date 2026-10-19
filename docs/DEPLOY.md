@@ -1,3 +1,5 @@
+> Cập nhật 3.3: đọc [PRICING-CTV-3.3.md](PRICING-CTV-3.3.md). Migration mới006; /health version3.3.0. Giữ cấu hình hạ tầng đang chạy.
+
 > Bản3.2: thêm migration004/005, không thêm biến môi trường. Xem DOCUMENTS-3.2.md trước khi cập nhật.
 
 # Triển khai AMORA Mini

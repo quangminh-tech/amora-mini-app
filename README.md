@@ -1,3 +1,11 @@
+# AMORA Mini 3.3 — Chính sách giá theo số lượng & dashboard CTV
+
+Xem [phân tích CSDL, luồng CTV và triển khai](docs/PRICING-CTV-3.3.md). Danh sách file: CHANGED-FILES-3.3.txt. Deploy backend trước frontend; không reset database.
+
+# AMORA Studio 3.2
+
+Bản cập nhật: tick nhập giá hàng loạt, loading/phân trang, mẫu chứng từ có biến/import JSON, catalogue ảnh/PDF cho Quản lý và CTV, bảng giá bậc số lượng. Hướng dẫn và phân tích: [docs/DOCUMENTS-3.2.md](docs/DOCUMENTS-3.2.md).
+
 # AMORA Studio 3.0 — CTV, sản phẩm nhiều size và báo giá
 
 Full source React + TypeScript, ASP.NET Core .NET 10, PostgreSQL. Giao diện ưu tiên bảng, nền kem ấm và burgundy theo định hướng AMORA. Không có CRM hoặc lịch chăm sóc.

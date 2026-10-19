@@ -64,7 +64,7 @@ app.Use(async (ctx, next) =>
 });
 app.UseRateLimiter();
 // Liveness must not continuously wake Neon; startup completes DB migration before listening.
-app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "amora-mini", version = "3.2.0" }));
+app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "amora-mini", version = "3.3.0" }));
 app.MapGet("/api/admin/readiness", async (HttpContext ctx, Db db) =>
 {
     ctx.Manager(); await using var c = await db.Open();
@@ -78,7 +78,7 @@ app.MapPost("/api/admin/storage-check", async (HttpContext ctx, ObjectStorage st
     return Results.Ok(new { storage = "ok", checkedAt = DateTime.UtcNow });
 });
 app.MapOverview(); app.MapAuth(); app.MapDirectories(); app.MapTransfers(); app.MapCatalogue();
-app.MapDocuments(); app.MapCustomers(); app.MapSales(); app.MapConversion(); app.MapAdmin();
+app.MapPricing(); app.MapDocuments(); app.MapCustomers(); app.MapSales(); app.MapConversion(); app.MapAdmin();
 for (var attempt = 1; ; attempt++)
 {
     try

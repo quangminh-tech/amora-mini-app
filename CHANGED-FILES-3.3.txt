@@ -1,0 +1,74 @@
+AMORA MINI 3.3 — DANH SÁCH FILE THAY THẾ ĐẦY ĐỦ
+
+Đọc HUONG-DAN-3.3.md hoặc docs/PRICING-CTV-3.3.md trước khi cập nhật.
+Đây là patch tích lũy so với bản Full Project v3; đã kèm các sửa mã mẫu, màu/SKU và chứng từ3.2.
+Chép vào gốc repository; deploy backend trước frontend. Không reset database.
+
+FILE MỚI TRỌNG TÂM 3.3
+backend/Endpoints/Pricing.cs
+backend/Services/QuantityPricing.cs
+database/migrations/006_quantity_pricing.sql
+frontend/src/pages/PricingPolicies.tsx
+frontend/src/pages/CtvDashboard.tsx
+frontend/src/pages/CtvPrices.tsx
+frontend/src/components/CtvPolicy.tsx
+tests/quantity-pricing.py
+
+TẤT CẢ FILE TRONG PATCH
+.github/workflows/ci.yml
+.gitignore
+CHANGED-FILES-3.3.txt
+HUONG-DAN-3.3.md
+README.md
+backend/Endpoints/Admin.cs
+backend/Endpoints/Catalogue.cs
+backend/Endpoints/Directories.cs
+backend/Endpoints/Documents.cs
+backend/Endpoints/Overview.cs
+backend/Endpoints/Pricing.cs
+backend/Endpoints/Sales.cs
+backend/Endpoints/Transfers.cs
+backend/Program.cs
+backend/Services/QuantityPricing.cs
+backend/Services/VariantCodes.cs
+database/migrations/004_product_colours.sql
+database/migrations/005_document_templates.sql
+database/migrations/006_quantity_pricing.sql
+docs/DEPLOY.md
+docs/DOCUMENTS-3.2.md
+docs/PRICING-CTV-3.3.md
+docs/SKU-COLOURS.md
+frontend/package-lock.json
+frontend/package.json
+frontend/public/brand/amora-logo.png
+frontend/src/App.tsx
+frontend/src/api.ts
+frontend/src/cataloguePdf.ts
+frontend/src/components/CatalogueExport.tsx
+frontend/src/components/CtvPolicy.tsx
+frontend/src/components/Selection.tsx
+frontend/src/components/UI.tsx
+frontend/src/documentTemplates.ts
+frontend/src/pages/Catalogue.tsx
+frontend/src/pages/CtvDashboard.tsx
+frontend/src/pages/CtvPrices.tsx
+frontend/src/pages/Customers.tsx
+frontend/src/pages/Dashboard.tsx
+frontend/src/pages/Directories.tsx
+frontend/src/pages/DocumentTemplates.tsx
+frontend/src/pages/Prices.tsx
+frontend/src/pages/PricingPolicies.tsx
+frontend/src/pages/Sales.tsx
+frontend/src/pages/Team.tsx
+frontend/src/pages/VariantBuilder.tsx
+frontend/src/pdf.ts
+frontend/src/pdfCore.ts
+frontend/src/style.css
+scripts/restore.py
+tests/colour-variants.py
+tests/database-upgrade.py
+tests/documents.py
+tests/loading-smoke.mjs
+tests/quantity-pricing.py
+tests/restore-smoke.py
+tests/workspace-smoke.mjs

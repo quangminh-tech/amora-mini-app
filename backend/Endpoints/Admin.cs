@@ -84,9 +84,9 @@ public static class Admin
         {
             ctx.Manager(); await using var c = await db.Open(); await using var tx = await c.BeginTransactionAsync(IsolationLevel.RepeatableRead);
             await db.Audit(c, tx, ctx.User().Id, "backup_exported");
-            string[] tables = ["users", "scents", "product_categories", "customer_groups", "product_models", "products", "product_images", "prices", "customers", "quotes", "quote_lines", "orders", "order_lines", "commissions", "audit_logs", "settings", "order_events", "payments", "import_batches"];
+            string[] tables = ["users", "scents", "product_categories", "customer_groups", "product_models", "products", "product_images", "prices", "customers", "quotes", "quote_lines", "orders", "order_lines", "commissions", "audit_logs", "settings", "order_events", "payments", "import_batches", "pricing_policies", "pricing_tiers", "pricing_tier_prices", "product_costs"];
             var data = new Dictionary<string, JsonElement>(); foreach (var t in tables) { var raw = await c.ExecuteScalarAsync<string>($"SELECT COALESCE(json_agg(t),'[]'::json)::text FROM {t} t", transaction: tx); data[t] = JsonSerializer.Deserialize<JsonElement>(raw!); }
-            var bytes = JsonSerializer.SerializeToUtf8Bytes(new { format = "amora-mini-backup-v1", createdAt = DateTime.UtcNow, schema = "005_document_templates.sql", tables = data }); await tx.CommitAsync();
+            var bytes = JsonSerializer.SerializeToUtf8Bytes(new { format = "amora-mini-backup-v1", createdAt = DateTime.UtcNow, schema = "006_quantity_pricing.sql", tables = data }); await tx.CommitAsync();
             return Results.File(bytes, "application/json", $"amora-backup-{DateTime.UtcNow:yyyyMMdd-HHmmss}.json");
         });
     }

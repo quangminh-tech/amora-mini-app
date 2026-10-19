@@ -103,6 +103,10 @@ public static class Catalogue
         Check.That(new[]{"retail","wholesale","b2b"}.Contains(r.Channel),"Kênh giá không hợp lệ.");
         Check.That(r.UnitPrice is >0 and <=1000000000&&decimal.Truncate(r.UnitPrice)==r.UnitPrice&&r.CommissionRate is >=0 and <=100&&decimal.Round(r.CommissionRate,2)==r.CommissionRate&&r.MinQty is >0 and <=100000,"Giá, MOQ hoặc hoa hồng không hợp lệ.");
         Check.That(await c.ExecuteScalarAsync<Guid?>("SELECT id FROM products WHERE id=@id FOR UPDATE",new{id},tx)is not null,"Không tìm thấy SKU.",404);
+        if(r.Channel!="retail") {
+            await c.ExecuteAsync("SELECT pg_advisory_xact_lock_shared(@key)",new{key=QuantityPricing.LockKey},tx);
+            Check.That(await c.ExecuteScalarAsync<int>("SELECT count(*) FROM pricing_policies pol JOIN product_models m ON m.category_id=pol.category_id JOIN products p ON p.model_id=m.id WHERE p.id=@id AND pol.channel=@Channel AND pol.active",new{id,r.Channel},tx)==0,"Nhóm đang dùng giá theo số lượng. Chỉnh tại Bảng giá → Sỉ & doanh nghiệp; không nhập vào bảng giá cũ.",409);
+        }
         var version=await c.ExecuteScalarAsync<int?>("SELECT version FROM prices WHERE product_id=@id AND channel=@Channel",new{id,r.Channel},tx);
         Check.That((version??0)==r.Version,"Giá đã thay đổi. Hãy tải lại.",409);
         await c.ExecuteAsync("INSERT INTO prices(id,product_id,channel,unit_price,commission_rate,min_qty) VALUES(@pid,@id,@Channel,@UnitPrice,@CommissionRate,@MinQty) ON CONFLICT(product_id,channel) DO UPDATE SET unit_price=excluded.unit_price,commission_rate=excluded.commission_rate,min_qty=excluded.min_qty,updated_at=now(),version=prices.version+1",new{pid=Guid.NewGuid(),id,r.Channel,r.UnitPrice,r.CommissionRate,r.MinQty},tx);

@@ -1,3 +1,5 @@
+import { CtvPrices } from "./pages/CtvPrices";
+import { CtvPolicy } from "./components/CtvPolicy";
 import { DocumentTemplates } from "./pages/DocumentTemplates";
 import React, { useEffect, useState, FormEvent, ReactNode } from "react";
 import {
@@ -156,13 +158,7 @@ export default function App() {
             .filter(
               ([k]) =>
                 manager ||
-                ![
-                  "users",
-                  "settings",
-                  "prices",
-                  "directories",
-                  "templates",
-                ].includes(k),
+                !["users", "settings", "directories", "templates"].includes(k),
             )
             .map(([key, label]) => (
               <button
@@ -197,7 +193,7 @@ export default function App() {
         </div>
       </aside>
       {menu && <div className="scrim" onClick={() => setMenu(false)} />}
-      <main>
+      <main className={page === "dashboard" ? "dashboard-main" : ""}>
         <header className="topbar">
           <button
             className="mobile-menu ghost"
@@ -212,6 +208,7 @@ export default function App() {
           </span>
           <div className="top-right">
             <span className="status-dot" />
+            {!manager && <CtvPolicy revision={revision} />}
             Không gian nội bộ
             <button className="ghost" onClick={logout}>
               Đăng xuất
@@ -219,7 +216,13 @@ export default function App() {
           </div>
         </header>
         <div className="workspace">
-          <div className="page-heading">
+          <div
+            className={
+              page === "dashboard"
+                ? "page-heading dashboard-page-heading"
+                : "page-heading"
+            }
+          >
             <div>
               <p className="eyebrow">
                 {manager ? "QUẢN LÝ KINH DOANH" : "KHÔNG GIAN CỘNG TÁC VIÊN"}
@@ -249,7 +252,8 @@ export default function App() {
           </div>
           {page === "dashboard" && <Dashboard {...common} navigate={setPage} />}
           {page === "products" && <Products {...common} />}
-          {page === "prices" && manager && <Prices {...common} />}
+          {page === "prices" &&
+            (manager ? <Prices {...common} /> : <CtvPrices {...common} />)}
           {page === "customers" && <Customers {...common} />}
           {(page === "orders" || page === "quotes") && (
             <SalesPage key={page} {...common} type={page} />

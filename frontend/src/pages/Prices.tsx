@@ -1,3 +1,4 @@
+import { PricingPolicies } from "./PricingPolicies";
 import React, { useState } from "react";
 import { Common } from "../types";
 import { api, Row, money, labels } from "../api";
@@ -13,7 +14,33 @@ import {
 } from "../components/UI";
 import { TransferBar } from "../components/Transfer";
 import { SelectAll, useSelection } from "../components/Selection";
-export function Prices({ revision, refresh, tell }: Common) {
+export function Prices(props: Common) {
+  const [tab, setTab] = useState("policies");
+  return (
+    <>
+      <div className="tabs">
+        <button
+          className={tab === "policies" ? "active" : ""}
+          onClick={() => setTab("policies")}
+        >
+          Sỉ & doanh nghiệp · Theo số lượng
+        </button>
+        <button
+          className={tab === "retail" ? "active" : ""}
+          onClick={() => setTab("retail")}
+        >
+          Giá bán lẻ
+        </button>
+      </div>
+      {tab === "policies" ? (
+        <PricingPolicies {...props} />
+      ) : (
+        <RetailPrices {...props} />
+      )}
+    </>
+  );
+}
+export function RetailPrices({ revision, refresh, tell }: Common) {
   const [page, setPage] = useState(1),
     [search, setSearch] = useState(""),
     [category, setCategory] = useState(""),
@@ -149,7 +176,7 @@ export function Prices({ revision, refresh, tell }: Common) {
       {!!selected.ids.length && (
         <div className="selection-bar">
           <strong>Đã chọn {selected.ids.length}/50 SKU</strong>
-          {["retail", "wholesale", "b2b"].map((ch) => (
+          {["retail"].map((ch) => (
             <button
               key={ch}
               className="secondary"
@@ -187,7 +214,7 @@ export function Prices({ revision, refresh, tell }: Common) {
                 </th>
                 <th>SKU / Mẫu</th>
                 <th>Mùi / Size / Màu</th>
-                {["retail", "wholesale", "b2b"].map((ch) => (
+                {["retail"].map((ch) => (
                   <th key={ch}>{labels[ch]}</th>
                 ))}
               </tr>
@@ -219,7 +246,7 @@ export function Prices({ revision, refresh, tell }: Common) {
                         .join(" · ")}
                     </small>
                   </td>
-                  {["retail", "wholesale", "b2b"].map((ch) => {
+                  {["retail"].map((ch) => {
                     const price = d.prices.find(
                       (x: Row) => x.product_id === p.id && x.channel === ch,
                     );
@@ -234,8 +261,8 @@ export function Prices({ revision, refresh, tell }: Common) {
                             <>
                               <strong>{money(price.unit_price)}</strong>
                               <small>
-                                MOQ {price.min_qty} · HH {price.commission_rate}
-                                %
+                                Tối thiểu {price.min_qty} · Hoa hồng{" "}
+                                {price.commission_rate}%
                               </small>
                             </>
                           ) : (
@@ -279,7 +306,7 @@ export function Prices({ revision, refresh, tell }: Common) {
               <div className="toolbar">
                 {[
                   ["unit_price", "Áp dụng giá dòng đầu"],
-                  ["min_qty", "Áp dụng MOQ dòng đầu"],
+                  ["min_qty", "Dùng số lượng tối thiểu dòng đầu"],
                   ["commission_rate", "Áp dụng % dòng đầu"],
                 ].map(([k, label]) => (
                   <button
@@ -298,7 +325,7 @@ export function Prices({ revision, refresh, tell }: Common) {
                     <tr>
                       <th>SKU / sản phẩm</th>
                       <th>Đơn giá (đ)</th>
-                      <th>MOQ</th>
+                      <th>Số lượng tối thiểu / SKU</th>
                       <th>Hoa hồng %</th>
                     </tr>
                   </thead>

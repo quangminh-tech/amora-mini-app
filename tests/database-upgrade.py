@@ -10,14 +10,14 @@ root=Path(__file__).resolve().parents[1]
 backup=json.loads(Path(os.environ['TEST_BACKUP_PATH']).read_text())['tables']
 url=os.environ['TEST_UPGRADE_DATABASE_URL']
 checks=0
-with psycopg.connect(url) as conn:
+with psycopg.connect(url,prepare_threshold=None) as conn:
     with conn.cursor() as cur:
         cur.execute("SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
         assert cur.fetchone()[0]==0,'Requires empty test DB'
         cur.execute((root/'database/migrations/001_initial.sql').read_text())
         cur.execute('DELETE FROM settings')
         for table,rows in backup.items():
-            if table in ('payments','product_categories','customer_groups','product_models','import_batches'):continue
+            if table in ('payments','product_categories','customer_groups','product_models','import_batches','pricing_policies','pricing_tiers','pricing_tier_prices','product_costs'):continue
             for row in rows:
                 if table=='settings' and row['key']!='business':continue
                 cur.execute(sql.SQL('INSERT INTO {} SELECT * FROM json_populate_record(NULL::{},%s::json)').format(sql.Identifier(table),sql.Identifier(table)),[json.dumps(row)])
@@ -31,7 +31,7 @@ with psycopg.connect(url) as conn:
         cur.execute((root/'database/migrations/003_catalogue_workspace.sql').read_text())
         cur.execute('SELECT count(*) FROM products WHERE model_id IS NULL');assert cur.fetchone()[0]==0
         cur.execute('SELECT count(*) FROM customers c LEFT JOIN customer_groups g ON g.id=c.group_id WHERE g.id IS NULL');assert cur.fetchone()[0]==0
-        for migration in ['004_product_colours.sql','005_document_templates.sql']:cur.execute((root/'database/migrations'/migration).read_text())
+        for migration in ['004_product_colours.sql','005_document_templates.sql','006_quantity_pricing.sql']:cur.execute((root/'database/migrations'/migration).read_text())
         cur.execute("SELECT count(*) FROM products WHERE color_label<>''");assert cur.fetchone()[0]==0
         cur.execute("SELECT count(*) FROM quotes WHERE document_snapshot<>'{}'::jsonb");assert cur.fetchone()[0]==0
         checks+=8

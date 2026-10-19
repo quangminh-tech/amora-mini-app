@@ -280,21 +280,19 @@ export function CatalogueExport({
                   value={channel}
                   onChange={(e) => setChannel(e.target.value)}
                 >
-                  {(manager ? ["retail", "wholesale", "b2b"] : ["retail"]).map(
-                    (ch) => (
-                      <option key={ch} value={ch}>
-                        {
-                          (
-                            {
-                              retail: "Bán lẻ",
-                              wholesale: "Bán sỉ",
-                              b2b: "Doanh nghiệp",
-                            } as Row
-                          )[ch]
-                        }
-                      </option>
-                    ),
-                  )}
+                  {["retail"].map((ch) => (
+                    <option key={ch} value={ch}>
+                      {
+                        (
+                          {
+                            retail: "Bán lẻ",
+                            wholesale: "Bán sỉ",
+                            b2b: "Doanh nghiệp",
+                          } as Row
+                        )[ch]
+                      }
+                    </option>
+                  ))}
                 </select>
               </Field>
               <Field label="Tiêu đề tài liệu">

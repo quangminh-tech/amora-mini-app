@@ -4,8 +4,9 @@ const root=resolve(dirname(fileURLToPath(import.meta.url)),'..'),dir=await mkdte
 const source=`import React from 'react';import {renderToStaticMarkup as render} from 'react-dom/server';import assert from 'node:assert/strict';import {Dashboard} from './pages/Dashboard';import {Users,Commissions} from './pages/Team';import {Products,Prices} from './pages/Catalogue';import {SalesPage} from './pages/Sales';import {Customers} from './pages/Customers';import {Directories} from './pages/Directories';
 const common={user:{id:'u',name:'Quản lý thử',email:'test@example.test',role:'manager'},revision:0,refresh:()=>{},tell:()=>{}};const user={id:'u',name:'CTV Kiểm tra',email:'ctv@example.test',role:'ctv',active:true,version:1,orders_count:3,quotes_count:4,revenue:900000,outstanding:50000};const page=items=>({items,total:items.length,page:1,pageSize:25});
 globalThis.fixture=path=>{
+if(path==='/pricing/policies')return {policies:[],tiers:[]};
 if(path==='/document-templates')return {version:0,templates:[]};
-if(path.startsWith('/overview'))return {quotes:{created:1,draft:1,sent:0,accepted:0,rejected:0},live:{waiting:0,expired:0},orders:{revenue:900000,processing:0},commissions:{pending:50000,approved:0,paid:0},recent:[],team:[],missingPrices:1,activeCtvs:1};
+if(path.startsWith('/overview'))return {quotes:{created:1,draft:1,sent:0,accepted:0,rejected:0},live:{waiting:0,expired:0},orders:{revenue:900000,completed:2,processing:0},commissions:{pending:50000,approved:0,paid:0},recent:[],team:[],missingPrices:1,activeCtvs:1};
 if(path.startsWith('/admin/users'))return path.includes('page=')?page([user]):[user];
 if(path==='/admin/account-limits')return {active_managers:1,active_ctvs:1,managers:'2',ctvs:'50',version:1};
 if(path.startsWith('/products'))return {products:[{id:'p',model_id:'m',model_name:'Mẫu nến kiểm tra',name:'Nến 220g',sku:'TEST-01',unit:'lọ',category_name:'Nến thơm',active:true,lead_days_min:7,lead_days_max:10,size_label:'220g'}],prices:[{product_id:'p',channel:'retail',unit_price:350000,min_qty:1,commission_rate:10}],images:[],total:1,page:1,pageSize:25};
@@ -22,11 +23,11 @@ if(path.startsWith('/quotes'))return page([{id:'q',code:'BG-TEST',customer_name:
 const dashboard=render(<Dashboard {...common} navigate={()=>{}}/>);assert(dashboard.includes('Báo giá tạo trong kỳ'));assert(dashboard.includes('Kết quả cộng tác viên'));assert(!dashboard.includes('Lịch chăm sóc'));
 const team=render(<Users {...common}/>);assert(team.includes('CTV Kiểm tra'));assert(team.includes('Nhập Excel'));
 const products=render(<Products {...common}/>);assert(products.includes('Mẫu nến kiểm tra'));assert(products.includes('220g'));assert(products.includes('Phiên bản / SKU'));assert(products.includes('Xuất Excel'));assert(products.includes('>Xóa<'));assert(products.includes('type="checkbox"'));const ctvProducts=render(<Products {...common} user={{...common.user,role:'ctv'}}/>);assert(!ctvProducts.includes('>Xóa<'));
-assert(render(<Prices {...common}/>).includes('Tìm bảng giá'));
+assert(render(<Prices {...common}/>).includes('Sỉ &amp; doanh nghiệp'));
 assert(render(<SalesPage {...common} type="quotes"/>).includes('BG-TEST'));
 assert(render(<Commissions {...common}/>).includes('Duyệt hoa hồng'));
 const contacts=render(<Customers {...common}/>);assert(contacts.includes('Khách lẻ'));assert(!contacts.includes('Chăm sóc'));
 assert(render(<Directories {...common}/>).includes('Nhóm kiểm tra'));
-const ctv=render(<Dashboard {...common} user={{...common.user,role:'ctv'}} navigate={()=>{}}/>);assert(!ctv.includes('Kết quả cộng tác viên'));assert(ctv.includes('Hoa hồng của bạn'));
+const ctv=render(<Dashboard {...common} user={{...common.user,role:'ctv'}} navigate={()=>{}}/>);assert(!ctv.includes('Kết quả cộng tác viên'));assert(ctv.includes('Ví hoa hồng của bạn'));
 console.log('PASS: 8 workspace screens and both dashboard roles render with table/SKU/group/import data.');`;
 await build({stdin:{contents:source,loader:'tsx',resolveDir:join(root,'frontend/src')},bundle:true,platform:'node',format:'cjs',outfile,define:{'import.meta.env':'{}'},plugins:[{name:'fixture',setup(b){b.onLoad({filter:/components\/UI\.tsx$/},async a=>{let s=await readFile(a.path,'utf8'),i=s.indexOf('export function useLoad<T>'),j=s.indexOf('export function useDebounced',i);return {contents:s.slice(0,i)+`export function useLoad<T>(path:string,revision=0){return {data:path?(globalThis as any).fixture(path) as T:null,error:"",loading:false};}\n`+s.slice(j),loader:'tsx',resolveDir:dirname(a.path)}})}}],logLevel:'warning'});await import(pathToFileURL(outfile));

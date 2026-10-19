@@ -1,3 +1,4 @@
+import { CtvPolicy } from "../components/CtvPolicy";
 import { Loading } from "../components/UI";
 import React, { useEffect, useState, FormEvent, ReactNode } from "react";
 import {
@@ -75,6 +76,52 @@ export function SalesPage({
     [err, setErr] = useState(""),
     [busy, setBusy] = useState(false),
     [action, setAction] = useState<Row | null>(null);
+  const { data: policies } = useLoad<Row>("/pricing/policies", revision);
+  const [pricingState, setPricingState] = useState<Row | null>(null);
+  const pricingKey = form
+    ? JSON.stringify({
+        channel: form.channel,
+        lines: form.lines.map((l: Row) => ({
+          productId: l.productId,
+          qty: Number(l.qty),
+          unitPrice:
+            manager && form.channel === "retail" && l.unitPrice !== ""
+              ? Number(l.unitPrice)
+              : null,
+        })),
+      })
+    : "";
+  const pricingReady =
+    !!form &&
+    form.lines.length > 0 &&
+    form.lines.every(
+      (l: Row) =>
+        l.productId && Number.isInteger(Number(l.qty)) && Number(l.qty) > 0,
+    );
+  useEffect(() => {
+    if (!pricingReady) return;
+    const abort = new AbortController();
+    const timer = setTimeout(() => {
+      api("/pricing/preview", "POST", JSON.parse(pricingKey), {
+        signal: abort.signal,
+      })
+        .then((result) => {
+          if (!abort.signal.aborted)
+            setPricingState({ key: pricingKey, result });
+        })
+        .catch((e) => {
+          if (!abort.signal.aborted)
+            setPricingState({ key: pricingKey, error: (e as Error).message });
+        });
+    }, 250);
+    return () => {
+      clearTimeout(timer);
+      abort.abort();
+    };
+  }, [pricingKey, pricingReady, revision]);
+  const pricing = pricingState?.key === pricingKey ? pricingState.result : null;
+  const pricingError =
+    pricingState?.key === pricingKey ? pricingState.error : "";
   const [productSearch, setProductSearch] = useState("");
   const productTerm = useDebounced(productSearch);
   const selectedProductIds = (form?.lines || [])
@@ -113,7 +160,8 @@ export function SalesPage({
     }
   }
   useEffect(() => {
-    if (recordId) void open(recordId);
+    if (recordId === "new") newForm();
+    else if (recordId) void open(recordId);
   }, [recordId]);
   const newForm = () => {
     setErr("");
@@ -151,12 +199,16 @@ export function SalesPage({
     try {
       const body = {
         ...form,
+        pricingToken: pricing?.token,
         clearDocument: quote && form.document === null,
         shipping: Number(form.shipping),
         lines: form.lines.map((l: Row) => ({
           productId: l.productId,
           qty: Number(l.qty),
-          unitPrice: manager && l.unitPrice !== "" ? Number(l.unitPrice) : null,
+          unitPrice:
+            manager && form.channel === "retail" && l.unitPrice !== ""
+              ? Number(l.unitPrice)
+              : null,
         })),
         version: form.version ?? null,
         ownerId: form.ownerId || null,
@@ -172,6 +224,7 @@ export function SalesPage({
       await open(saved.id);
     } catch (e) {
       setErr((e as Error).message);
+      refresh();
     } finally {
       setBusy(false);
     }
@@ -245,31 +298,15 @@ export function SalesPage({
         "cancelled",
         "returned",
       ];
-  const available = (channel: string) =>
-    catalogue?.products.filter(
-      (p: Row) =>
-        p.active &&
-        catalogue.prices.some(
-          (r: Row) => r.product_id === p.id && r.channel === channel,
-        ),
-    ) || [];
+  const available = (_channel: string) =>
+    catalogue?.products.filter((p: Row) => p.active) || [];
   const price = (id: string, ch: string) =>
     catalogue?.prices.find((r: Row) => r.product_id === id && r.channel === ch);
-  const total =
-    form?.lines.reduce(
-      (sum: number, l: Row) =>
-        sum +
-        Number(l.qty) *
-          Number(
-            manager && l.unitPrice !== ""
-              ? l.unitPrice
-              : price(l.productId, form.channel)?.unit_price || 0,
-          ),
-      0,
-    ) || 0;
+  const total = pricing?.subtotal ?? 0;
   return (
     <>
       <div className="toolbar">
+        <CtvPolicy revision={revision} />
         <div className="search">
           <span>⌕</span>
           <input
@@ -367,6 +404,7 @@ export function SalesPage({
           close={() => setForm(null)}
         >
           <form onSubmit={save}>
+            <CtvPolicy revision={revision} />
             {quote && documentTemplates && (
               <section>
                 <Field label="Mẫu chứng từ">
@@ -530,24 +568,39 @@ export function SalesPage({
                   ))}
                 </select>
               </Field>
-              <Field label="Kênh giá">
+              <Field label="Nhu cầu khách hàng">
                 <select
                   value={form.channel}
                   onChange={(e) =>
                     setForm({
                       ...form,
                       channel: e.target.value,
-                      lines: [{ productId: "", qty: 1, unitPrice: "" }],
+                      lines: form.lines.map((l: Row) => ({
+                        ...l,
+                        unitPrice: "",
+                      })),
                     })
                   }
                 >
-                  {(manager ? ["retail", "wholesale", "b2b"] : ["retail"]).map(
-                    (ch) => (
-                      <option key={ch} value={ch}>
-                        {labels[ch]}
-                      </option>
-                    ),
-                  )}
+                  {(manager
+                    ? ["retail", "wholesale", "b2b"]
+                    : [
+                        "retail",
+                        ...["wholesale", "b2b"].filter((ch) =>
+                          policies?.policies.some((p: Row) => p.channel === ch),
+                        ),
+                      ]
+                  ).map((ch) => (
+                    <option key={ch} value={ch}>
+                      {
+                        {
+                          retail: "Mua lẻ",
+                          wholesale: "Nhập bán lại",
+                          b2b: "Quà tặng doanh nghiệp",
+                        }[ch]
+                      }
+                    </option>
+                  ))}
                 </select>
               </Field>
               {manager && !form.id && (
@@ -629,8 +682,11 @@ export function SalesPage({
                         const p = price(e.target.value, form.channel);
                         lines[i] = {
                           productId: e.target.value,
-                          qty: p?.min_qty || 1,
-                          unitPrice: manager ? p?.unit_price || "" : "",
+                          qty: 1,
+                          unitPrice:
+                            manager && form.channel === "retail"
+                              ? p?.unit_price || ""
+                              : "",
                         };
                         setForm({ ...form, lines });
                       }}
@@ -647,7 +703,7 @@ export function SalesPage({
                     <input
                       type="number"
                       required
-                      min={price(l.productId, form.channel)?.min_qty || 1}
+                      min={1}
                       max="100000"
                       step="1"
                       value={l.qty}
@@ -665,11 +721,13 @@ export function SalesPage({
                       min="1"
                       step="1"
                       max="1000000000"
-                      readOnly={!manager}
+                      readOnly={!manager || form.channel !== "retail"}
                       value={
-                        manager
+                        manager && form.channel === "retail"
                           ? l.unitPrice
-                          : price(l.productId, form.channel)?.unit_price || ""
+                          : pricing?.lines.find(
+                              (x: Row) => x.productId === l.productId,
+                            )?.unitPrice || ""
                       }
                       onChange={(e) => {
                         const lines = [...form.lines];
@@ -713,6 +771,42 @@ export function SalesPage({
             >
               + Thêm dòng sản phẩm
             </button>
+            <section className="pricing-explanation" aria-live="polite">
+              <h3>Giá và hoa hồng của đơn này</h3>
+              {!pricingReady ? (
+                <p>Chọn sản phẩm và nhập số lượng để tính giá.</p>
+              ) : !pricing && !pricingError ? (
+                <Loading label="Đang tính bậc giá…" />
+              ) : null}
+              <ErrorBox error={pricingError} />
+              {pricing?.lines.map((l: Row) => (
+                <div className="pricing-line-result" key={l.productId}>
+                  <strong>{l.productName}</strong>
+                  <small className="block">
+                    {l.group}: {l.groupQty} sản phẩm · {l.policy}
+                  </small>
+                  {l.error ? (
+                    <p className="danger">{l.error}</p>
+                  ) : (
+                    <p>
+                      {l.qty} × {money(l.unitPrice)} ={" "}
+                      <strong>{money(l.amount)}</strong>
+                      <span className="block muted">
+                        Hoa hồng dự kiến {l.commissionRate}% ·{" "}
+                        {money(l.commission)}
+                      </span>
+                    </p>
+                  )}
+                </div>
+              ))}
+              {pricing?.valid && (
+                <p className="notice">
+                  Hoa hồng dự kiến toàn đơn:{" "}
+                  <strong>{money(pricing.commission)}</strong>. Không tính vận
+                  chuyển; được ghi nhận khi đơn đủ điều kiện.
+                </p>
+              )}
+            </section>
             <div className="form-grid">
               <Field label="Vận chuyển (VND)">
                 <input
@@ -765,7 +859,7 @@ export function SalesPage({
               >
                 Hủy
               </button>
-              <button className="primary" disabled={busy}>
+              <button className="primary" disabled={busy || !pricing?.valid}>
                 Lưu {quote ? "báo giá" : "đơn hàng"}
               </button>
             </div>

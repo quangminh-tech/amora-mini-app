@@ -80,15 +80,24 @@ export function Modal({
   close: () => void;
   children: ReactNode;
 }) {
+  const overlay = React.useRef<HTMLDivElement>(null);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
+      const dialogs = document.querySelectorAll(".overlay");
+      if (
+        e.key === "Escape" &&
+        dialogs[dialogs.length - 1] === overlay.current
+      ) {
+        e.preventDefault();
+        close();
+      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [close]);
   return (
     <div
+      ref={overlay}
       className="overlay"
       onClick={(e) => {
         if (e.target === e.currentTarget) close();

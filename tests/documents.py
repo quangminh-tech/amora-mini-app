@@ -60,7 +60,7 @@ p=next(p for p in products['products'] if p['id']==product_id)
 call('/api/products/'+product_id,'PUT',{'sku':p['sku'],'modelId':p['model_id'],'sizeLabel':p['size_label'],'colorLabel':p['color_label'],'scentId':p['scent_id'],'unit':p['unit'],'active':False,'version':p['version']},a,204)
 call('/api/catalogue/export-data','POST',{'ids':[product_id]},ctv,409)
 backup=call('/api/admin/backup',token=a)
-assert backup['schema']=='005_document_templates.sql'
+assert backup['schema']=='006_quantity_pricing.sql'
 assert any(x['key']=='document_templates' for x in backup['tables']['settings'])
 Path(__file__).parents[1].joinpath('document-test-backup.json').write_text(json.dumps(backup,ensure_ascii=False))
 print('PASS: document template validation, import structure, optimistic updates, quote snapshots, safe variables, basic-template switch, atomic bulk prices and stale rollback, catalogue permissions, hidden SKU guard and private-field exclusion.')
