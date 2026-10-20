@@ -1,3 +1,4 @@
+import { CatalogueStudio } from "./pages/CatalogueStudio";
 import { CtvPrices } from "./pages/CtvPrices";
 import { CtvPolicy } from "./components/CtvPolicy";
 import { DocumentTemplates } from "./pages/DocumentTemplates";
@@ -28,6 +29,7 @@ const routes = [
   ["dashboard", "Tổng quan"],
   ["users", "Cộng tác viên"],
   ["products", "Danh mục sản phẩm"],
+  ["catalogue", "Catalogue"],
   ["prices", "Bảng giá"],
   ["quotes", "Báo giá"],
   ["orders", "Đơn hàng"],
@@ -165,6 +167,14 @@ export default function App() {
                 key={key}
                 className={page === key ? "active" : ""}
                 onClick={() => {
+                  if (
+                    page === "catalogue" &&
+                    key !== "catalogue" &&
+                    !window.dispatchEvent(
+                      new Event("amora-studio-leave", { cancelable: true }),
+                    )
+                  )
+                    return;
                   setRecordId(undefined);
                   setPage(key);
                   setMenu(false);
@@ -252,6 +262,7 @@ export default function App() {
           </div>
           {page === "dashboard" && <Dashboard {...common} navigate={setPage} />}
           {page === "products" && <Products {...common} />}
+          {page === "catalogue" && <CatalogueStudio {...common} />}
           {page === "prices" &&
             (manager ? <Prices {...common} /> : <CtvPrices {...common} />)}
           {page === "customers" && <Customers {...common} />}

@@ -1,0 +1,629 @@
+/* Scoped catalogue styles. No global overrides of the existing sales screens. */
+.cs-workspace {
+  min-width: 0;
+}
+.cs-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  padding: 14px;
+  background: #eee5da;
+  border-radius: 12px;
+  margin-bottom: 12px;
+}
+.cs-toolbar strong {
+  margin-right: auto;
+  max-width: 240px;
+  overflow-wrap: anywhere;
+}
+.cs-toolbar span {
+  font-size: 12px;
+  color: #7c6359;
+}
+.cs-library {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 18px;
+}
+.cs-library article {
+  border: 1px solid #dfd0c1;
+  background: #fffaf4;
+  border-radius: 14px;
+  padding: 24px;
+}
+.cs-library button {
+  margin: 5px 5px 0 0;
+}
+.cs-pagination {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+  margin: 20px 0;
+}
+.cs-pagination span {
+  margin-right: auto;
+}
+.cs-editor {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.cs-editor.cs-preview-only {
+  grid-template-columns: minmax(0, 1fr);
+}
+.cs-inspector {
+  position: sticky;
+  top: 15px;
+  max-height: calc(100vh - 35px);
+  overflow: auto;
+  padding: 16px;
+  background: #fffaf4;
+  border: 1px solid #dfd0c1;
+  border-radius: 12px;
+}
+.cs-inspector fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.cs-inspector input:not([type="checkbox"]),
+.cs-inspector select,
+.cs-inspector textarea {
+  width: 100%;
+  min-width: 0;
+}
+.cs-inspector details {
+  margin-bottom: 18px;
+}
+.cs-inspector summary {
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 15px;
+}
+.cs-inspector label {
+  margin-top: 10px;
+}
+.cs-inspector button {
+  margin-top: 8px;
+  font-size: 12px;
+}
+.cs-inspector textarea {
+  min-height: 70px;
+}
+.cs-add {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 14px 0;
+}
+.cs-image-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.cs-image-row span {
+  margin-right: auto;
+}
+.cs-table-edit {
+  border-top: 1px solid #e0d4c8;
+  padding: 12px 0;
+}
+.cs-canvas {
+  min-width: 0;
+  margin: 0 auto;
+  width: 100%;
+  box-shadow: 0 8px 45px #35261c12;
+}
+.cs-canvas.cs-phone {
+  max-width: 390px;
+}
+.cs-sheet {
+  --cs-bg: #f6f0e7;
+  --cs-ink: #302820;
+  --cs-accent: #713342;
+  --cs-muted: #7d6b5a;
+  --cs-line: #d9cabc;
+  color: var(--cs-ink);
+  background: var(--cs-bg);
+  font:
+    15px/1.65 Arial,
+    sans-serif;
+  overflow-wrap: anywhere;
+}
+.cs-theme-white {
+  --cs-bg: #fff;
+}
+.cs-theme-dark {
+  --cs-bg: #272320;
+  --cs-ink: #fbf4e9;
+  --cs-muted: #c6b29b;
+  --cs-accent: #e0b88c;
+  --cs-line: #66574a;
+}
+.cs-sheet h1,
+.cs-sheet h2 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 400;
+  line-height: 1.18;
+  color: var(--cs-ink);
+  margin: 12px 0 20px;
+}
+.cs-sheet h1 {
+  font-size: clamp(30px, 4vw, 62px);
+  max-width: 650px;
+}
+.cs-sheet h2 {
+  font-size: 30px;
+}
+.cs-sheet p {
+  color: inherit;
+}
+.cs-eyebrow {
+  font:
+    11px/1.5 Arial,
+    sans-serif;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--cs-muted) !important;
+}
+.cs-cover {
+  position: relative;
+  min-height: 480px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--cs-line);
+  overflow: hidden;
+}
+.cs-cover-copy {
+  padding: 65px 8%;
+  position: relative;
+  z-index: 1;
+  max-width: 100%;
+}
+.cs-cover:has(.cs-cover-photo) {
+  color: white;
+  background: #302820;
+}
+.cs-cover:has(.cs-cover-photo) h1,
+.cs-cover:has(.cs-cover-photo) .cs-eyebrow {
+  color: white !important;
+}
+.cs-cover-photo {
+  position: absolute;
+  inset: 0;
+}
+.cs-cover-photo:after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, #18120ce0, #18120c20);
+  pointer-events: none;
+}
+.cs-cover-photo .cs-photo {
+  height: 100%;
+  aspect-ratio: auto;
+}
+.cs-logo {
+  width: 150px;
+  height: auto;
+  max-height: 85px;
+  object-fit: contain;
+  display: block;
+  margin-bottom: 35px;
+}
+.cs-intro {
+  padding: 45px 8%;
+  font-size: 20px;
+  white-space: pre-wrap;
+  max-width: 860px;
+}
+.cs-section {
+  position: relative;
+  padding: 45px 8%;
+  border-bottom: 1px solid var(--cs-line);
+  display: grid;
+  gap: 28px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+}
+.cs-selected {
+  outline: 2px dashed #b58a65;
+  outline-offset: -5px;
+}
+.cs-copy {
+  min-width: 0;
+}
+.cs-description,
+.cs-end p {
+  white-space: pre-wrap;
+}
+.cs-description {
+  font-size: 15px;
+}
+.cs-spec {
+  font-size: 13px;
+  color: var(--cs-muted) !important;
+}
+.cs-price {
+  font-size: 22px;
+  color: var(--cs-accent) !important;
+}
+.cs-photos {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  min-width: 0;
+}
+.cs-photo {
+  aspect-ratio: 1/1;
+  background: #e7dfd3;
+  display: grid;
+  place-items: center;
+  position: relative;
+  overflow: hidden;
+  color: #6d5b4f;
+}
+.cs-photo img {
+  height: 100%;
+  width: 100%;
+  position: absolute;
+  inset: 0;
+  cursor: zoom-in;
+  transition: transform 0.45s ease;
+}
+.cs-photo img:hover {
+  transform: scale(1.025);
+}
+.cs-photo span,
+.cs-photo small {
+  text-align: center;
+  padding: 18px;
+  font-size: 12px;
+}
+.cs-photo small {
+  position: relative;
+  background: #fff4e8;
+}
+.cs-count-2,
+.cs-count-3,
+.cs-count-4 {
+  grid-template-columns: 1fr 1fr;
+}
+.cs-count-3 .cs-photo:first-child {
+  grid-column: 1/-1;
+  aspect-ratio: 4/3;
+}
+.cs-layout-gallery {
+  grid-template-columns: 1fr;
+}
+.cs-layout-gallery > .cs-photos > .cs-photo:only-child {
+  aspect-ratio: 16/10;
+}
+.cs-layout-compact {
+  grid-template-columns: 180px minmax(0, 1fr);
+  padding-top: 25px;
+  padding-bottom: 25px;
+}
+.cs-kind-text,
+.cs-kind-table {
+  display: block;
+}
+.cs-kind-gallery .cs-copy:empty {
+  display: none;
+}
+.cs-table-scroll {
+  overflow: auto;
+}
+.cs-sheet table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+  table-layout: fixed;
+}
+.cs-sheet th {
+  background: var(--cs-accent);
+  color: var(--cs-bg);
+  font-weight: 500;
+}
+.cs-sheet th,
+.cs-sheet td {
+  text-align: left;
+  vertical-align: top;
+  padding: 12px;
+  border-bottom: 1px solid var(--cs-line);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.cs-end {
+  padding: 50px 8%;
+}
+.cs-end h2 {
+  font-size: 28px;
+}
+.cs-end p {
+  font-size: 13px;
+}
+.cs-empty {
+  padding: 40px;
+}
+.cs-edit-only {
+  font:
+    12px Arial,
+    sans-serif;
+  border: 1px solid #a98163;
+  background: #fffaf4;
+  color: #713342;
+  padding: 9px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.cs-select {
+  position: absolute;
+  right: 10px;
+  top: 8px;
+  z-index: 2;
+}
+.cs-assets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.cs-assets button {
+  padding: 6px;
+  min-width: 0;
+}
+.cs-assets small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.cs-assets .cs-photo {
+  width: 100%;
+}
+.cs-product-option {
+  border-bottom: 1px solid #ddd0c4;
+  padding: 15px 0;
+}
+.cs-product-option strong,
+.cs-product-option small {
+  display: block;
+}
+.cs-product-images {
+  display: flex;
+  gap: 8px;
+  overflow: auto;
+  margin: 10px 0;
+}
+.cs-product-images button {
+  width: 75px;
+  min-width: 75px;
+  height: 75px;
+  padding: 4px;
+}
+.cs-product-images img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.cs-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: #15110ef2;
+  display: grid;
+  place-items: center;
+  padding: 65px 25px 25px;
+}
+.cs-lightbox img {
+  max-width: 95vw;
+  max-height: 82vh;
+  object-fit: contain;
+}
+.cs-lightbox button {
+  position: absolute;
+  right: 25px;
+  top: 20px;
+  background: white;
+  color: #302820;
+}
+.cs-motion .cs-section {
+  animation: cs-appear 0.55s ease both;
+}
+@keyframes cs-appear {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.cs-phone .cs-section {
+  grid-template-columns: 1fr;
+  padding: 32px 22px;
+}
+.cs-phone .cs-cover {
+  min-height: 420px;
+}
+.cs-phone .cs-cover-copy {
+  padding: 40px 25px;
+}
+.cs-phone h1 {
+  font-size: 36px;
+}
+.cs-phone .cs-intro,
+.cs-phone .cs-end {
+  padding: 30px 22px;
+}
+.cs-phone .cs-sheet table {
+  font-size: 11px;
+}
+.cs-phone .cs-sheet td,
+.cs-phone .cs-sheet th {
+  padding: 7px;
+}
+@media (max-width: 1100px) {
+  .cs-editor {
+    grid-template-columns: 270px minmax(0, 1fr);
+  }
+  .cs-section {
+    grid-template-columns: 1fr;
+  }
+  .cs-cover-copy {
+    padding: 45px 7%;
+  }
+}
+@media (max-width: 760px) {
+  .cs-editor {
+    grid-template-columns: 1fr;
+  }
+  .cs-inspector {
+    position: static;
+    max-height: 60vh;
+  }
+  .cs-section {
+    grid-template-columns: 1fr;
+    padding: 30px 22px;
+  }
+  .cs-sheet h1 {
+    font-size: 36px;
+  }
+  .cs-cover {
+    min-height: 390px;
+  }
+  .cs-intro,
+  .cs-end {
+    padding: 30px 22px;
+  }
+  .cs-assets {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .cs-pagination {
+    flex-wrap: wrap;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cs-motion .cs-section {
+    animation: none;
+  }
+  .cs-photo img {
+    transition: none;
+  }
+}
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+  .cs-sheet {
+    font-size: 11pt;
+    background: white !important;
+    color: #302820 !important;
+    --cs-bg: #fff;
+    --cs-ink: #302820;
+    --cs-muted: #776353;
+    --cs-line: #d9cabc;
+    --cs-accent: #713342;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .cs-sheet * {
+    animation: none !important;
+    transition: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .cs-edit-only {
+    display: none !important;
+  }
+  .cs-cover {
+    min-height: 220mm;
+    break-after: page;
+  }
+  .cs-cover-copy {
+    padding: 20mm 12mm;
+  }
+  .cs-sheet h1 {
+    font-size: 36pt;
+  }
+  .cs-sheet h2 {
+    font-size: 23pt;
+  }
+  .cs-section {
+    display: block;
+    padding: 8mm 0;
+    break-inside: auto;
+  }
+  .cs-photos {
+    max-width: 125mm;
+    margin: 0 auto 8mm;
+    break-inside: avoid;
+  }
+  .cs-photo {
+    aspect-ratio: 4/3;
+    max-height: 100mm;
+  }
+  .cs-cover-photo .cs-photo {
+    max-height: none;
+  }
+  .cs-copy h2 {
+    break-after: avoid;
+  }
+  .cs-page-break {
+    break-before: page;
+  }
+  .cs-intro {
+    padding: 8mm 0;
+  }
+  .cs-end {
+    padding: 6mm 0;
+    break-inside: avoid;
+  }
+  .cs-table-scroll {
+    overflow: visible;
+  }
+  .cs-sheet table {
+    font-size: 9pt;
+  }
+  .cs-sheet thead {
+    display: table-header-group;
+  }
+  .cs-sheet tr {
+    break-inside: avoid;
+  }
+  .cs-sheet th,
+  .cs-sheet td {
+    padding: 3mm;
+  }
+  .cs-selected {
+    outline: none;
+  }
+}
+.cs-workspace button:not([class]) {
+  border: 1px solid #713342;
+  border-radius: 6px;
+  background: #713342;
+  color: #fff;
+  padding: 10px 14px;
+  font: inherit;
+  cursor: pointer;
+}
+.cs-workspace button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.cs-workspace button:focus-visible,
+.cs-photo img:focus-visible {
+  outline: 3px solid #bc9569;
+  outline-offset: 3px;
+}
