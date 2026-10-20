@@ -41,15 +41,19 @@ public static class CatalogueStudio
         {
             Check.That(s is not null && s.Id != Guid.Empty && keys.Add(s.Id), "Mục nội dung không hợp lệ hoặc trùng ID.");
             Check.That(new[] { "product", "text", "gallery", "table" }.Contains(s!.Kind), "Loại nội dung không hợp lệ.");
-            Check.That(new[] { "split", "gallery", "compact" }.Contains(s.Layout), "Bố cục không hợp lệ.");
+            Check.That(new[] { "split", "gallery", "compact", "full" }.Contains(s.Layout), "Bố cục không hợp lệ.");
             Check.That(new[] { "contain", "cover" }.Contains(s.Fit) && s.Position is >= 0 and <= 100, "Vị trí ảnh không hợp lệ.");
+            Check.That(s.GalleryColumns is >= 1 and <= 4 && s.ImageGap is >= 0 and <= 32 && s.ImageRadius is >= 0 and <= 32, "Số cột hoặc khoảng cách/bo góc ảnh không hợp lệ.");
+            Check.That(new[] { "auto", "square", "landscape", "wide", "portrait" }.Contains(s.ImageRatio), "Tỷ lệ khung ảnh không hợp lệ.");
+            Check.That(s.ImageCrops is not null && s.ImageCrops.Count <= 12, "Vị trí cắt ảnh không hợp lệ.");
+            foreach(var crop in s.ImageCrops!) Check.That(s.ImageIds is not null && s.ImageIds.Contains(crop.Key) && crop.Value is not null && crop.Value.X is >= 0 and <= 100 && crop.Value.Y is >= 0 and <= 100, "Vị trí cắt ảnh phải nằm trong khoảng 0–100.");
             Check.Text(s.Title, 180);
             Check.Text(s.Description, 5000);
             Check.Text(s.Sku, 80);
             Check.Text(s.Spec, 300);
             Check.That(s.Price is null or > 0 and <= 1000000000, "Giá không hợp lệ.");
             Check.That(manager || s.Price is null, "CTV không nhập giá trong catalogue.", 403);
-            Check.That(s.ImageIds is not null && s.ImageIds.Length <= 4 && !s.ImageIds.Contains(Guid.Empty) && s.ImageIds.Distinct().Count() == s.ImageIds.Length, "Tối đa 4 ảnh khác nhau cho một mục.");
+            Check.That(s.ImageIds is not null && s.ImageIds.Length <= (s.Kind == "gallery" ? 12 : 4) && !s.ImageIds.Contains(Guid.Empty) && s.ImageIds.Distinct().Count() == s.ImageIds.Length, "Bộ ảnh tối đa 12 ảnh; mục sản phẩm tối đa 4 ảnh khác nhau.");
             Check.That(s.Columns is not null && s.Columns.Length <= 6 && s.Rows is not null && s.Rows.Length <= 40, "Bảng tối đa 6 cột, 40 hàng.");
             foreach (var column in s.Columns!)
                 Check.Text(column, 100);
@@ -195,6 +199,7 @@ public static class CatalogueStudio
             {
                 section.Id = Guid.NewGuid();
                 section.ImageIds = section.ImageIds.Select(x => remap[x]).ToArray();
+                section.ImageCrops = section.ImageCrops.ToDictionary(x => remap[x.Key], x => x.Value);
             }
 
             await c.ExecuteAsync("INSERT INTO catalogue_documents(id,owner_id,name,content) VALUES(@next,@uid,@name,CAST(@content AS jsonb))", new { next, uid = ctx.User().Id, name, content = Pack(content) }, tx);
@@ -299,6 +304,11 @@ public sealed class StudioSection
     public string Layout { get; set; } = "split";
     public string Fit { get; set; } = "contain";
     public int Position { get; set; } = 50;
+    public int GalleryColumns { get; set; } = 1;
+    public string ImageRatio { get; set; } = "wide";
+    public int ImageGap { get; set; } = 12;
+    public int ImageRadius { get; set; }
+    public Dictionary<Guid, StudioCrop> ImageCrops { get; set; } = [];
     public bool PageBreak { get; set; }
     public Guid[] ImageIds { get; set; } = [];
     public string[] Columns { get; set; } = [];
@@ -325,3 +335,5 @@ public sealed class StudioAsset
     public string ObjectKey { get; set; } = "";
     public string ContentType { get; set; } = "";
 }
+
+public sealed class StudioCrop { public int X {get;set;} = 50; public int Y {get;set;} = 50; }

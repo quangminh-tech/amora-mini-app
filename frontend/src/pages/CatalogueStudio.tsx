@@ -183,6 +183,7 @@ export function CatalogueStudio({ user, tell }: Common) {
           .join(" · "),
         price: manager ? (d.prices[0]?.unit_price ?? null) : null,
         imageIds: [],
+        imageCrops: {},
       };
       if (imageId || p.image_id) {
         const response = await request("/images/" + (imageId || p.image_id));
@@ -207,8 +208,12 @@ export function CatalogueStudio({ user, tell }: Common) {
       const s = doc.content.sections.find((x) => x.id === assetTarget);
       if (!s) return;
       if (s.imageIds.includes(id)) return;
-      if (s.imageIds.length >= 4) {
-        setError("Một mục tối đa 4 ảnh. Bỏ ảnh cũ trước khi thêm.");
+      if (s.imageIds.length >= (s.kind === "gallery" ? 12 : 4)) {
+        setError(
+          s.kind === "gallery"
+            ? "Bộ ảnh tối đa 12 ảnh."
+            : "Mục sản phẩm tối đa 4 ảnh.",
+        );
         return;
       }
       change({
@@ -608,8 +613,82 @@ export function CatalogueStudio({ user, tell }: Common) {
                                 Ảnh lớn · nội dung bên dưới
                               </option>
                               <option value="compact">Thẻ gọn</option>
+                              <option value="full">Bộ ảnh toàn khung</option>
                             </select>
                           </Field>
+                          {current.layout === "full" && (
+                            <>
+                              <p className="muted">
+                                Ảnh phủ toàn chiều ngang catalogue. Để trống
+                                tiêu đề và mô tả nếu chỉ muốn hiển thị ảnh.
+                              </p>
+                              <Field label="Số cột ảnh">
+                                <select
+                                  value={current.galleryColumns ?? 1}
+                                  onChange={(e) =>
+                                    section({
+                                      galleryColumns: Number(e.target.value),
+                                    })
+                                  }
+                                >
+                                  {[1, 2, 3, 4].map((n) => (
+                                    <option key={n} value={n}>
+                                      {n} cột
+                                    </option>
+                                  ))}
+                                </select>
+                              </Field>
+                              <Field label="Tỷ lệ khung ảnh">
+                                <select
+                                  value={current.imageRatio || "wide"}
+                                  onChange={(e) =>
+                                    section({
+                                      imageRatio: e.target
+                                        .value as Section["imageRatio"],
+                                    })
+                                  }
+                                >
+                                  <option value="auto">
+                                    Theo tỷ lệ ảnh gốc
+                                  </option>
+                                  <option value="wide">Ngang 16:9</option>
+                                  <option value="landscape">Ngang 4:3</option>
+                                  <option value="square">Vuông 1:1</option>
+                                  <option value="portrait">Dọc 3:4</option>
+                                </select>
+                              </Field>
+                              <Field
+                                label={`Khoảng cách ảnh: ${current.imageGap ?? 12}px`}
+                              >
+                                <input
+                                  type="range"
+                                  min={0}
+                                  max={32}
+                                  value={current.imageGap ?? 12}
+                                  onChange={(e) =>
+                                    section({
+                                      imageGap: Number(e.target.value),
+                                    })
+                                  }
+                                />
+                              </Field>
+                              <Field
+                                label={`Bo góc ảnh: ${current.imageRadius ?? 0}px`}
+                              >
+                                <input
+                                  type="range"
+                                  min={0}
+                                  max={32}
+                                  value={current.imageRadius ?? 0}
+                                  onChange={(e) =>
+                                    section({
+                                      imageRadius: Number(e.target.value),
+                                    })
+                                  }
+                                />
+                              </Field>
+                            </>
+                          )}
                           <Field label="Cách hiển thị ảnh">
                             <select
                               value={current.fit}
@@ -645,34 +724,97 @@ export function CatalogueStudio({ user, tell }: Common) {
                             + Ảnh từ thư viện / tải lên
                           </button>
                           {current.imageIds.map((id, index) => (
-                            <div key={id} className="cs-image-row">
-                              <span>Ảnh {index + 1}</span>
-                              <button
-                                className="ghost"
-                                disabled={index === 0}
-                                onClick={() => {
-                                  const ids = [...current.imageIds];
-                                  [ids[index - 1], ids[index]] = [
-                                    ids[index],
-                                    ids[index - 1],
-                                  ];
-                                  section({ imageIds: ids });
-                                }}
-                              >
-                                Lên
-                              </button>
-                              <button
-                                className="ghost"
-                                onClick={() =>
-                                  section({
-                                    imageIds: current.imageIds.filter(
-                                      (x) => x !== id,
-                                    ),
-                                  })
-                                }
-                              >
-                                Bỏ khỏi mục
-                              </button>
+                            <div key={id} className="cs-image-controls">
+                              <div className="cs-image-row">
+                                <span>Ảnh {index + 1}</span>
+                                <button
+                                  className="ghost"
+                                  disabled={index === 0}
+                                  onClick={() => {
+                                    const ids = [...current.imageIds];
+                                    [ids[index - 1], ids[index]] = [
+                                      ids[index],
+                                      ids[index - 1],
+                                    ];
+                                    section({ imageIds: ids });
+                                  }}
+                                >
+                                  Lên
+                                </button>
+                                <button
+                                  className="ghost"
+                                  onClick={() =>
+                                    section({
+                                      imageIds: current.imageIds.filter(
+                                        (x) => x !== id,
+                                      ),
+                                      imageCrops: Object.fromEntries(
+                                        Object.entries(
+                                          current.imageCrops || {},
+                                        ).filter(([key]) => key !== id),
+                                      ),
+                                    })
+                                  }
+                                >
+                                  Bỏ khỏi mục
+                                </button>
+                              </div>
+                              {current.fit === "cover" &&
+                                current.imageRatio !== "auto" && (
+                                  <>
+                                    <Field
+                                      label={`Ảnh ${index + 1}: trái / phải`}
+                                    >
+                                      <input
+                                        type="range"
+                                        min={0}
+                                        max={100}
+                                        value={
+                                          current.imageCrops?.[id]?.x ?? 50
+                                        }
+                                        onChange={(e) =>
+                                          section({
+                                            imageCrops: {
+                                              ...current.imageCrops,
+                                              [id]: {
+                                                x: Number(e.target.value),
+                                                y:
+                                                  current.imageCrops?.[id]?.y ??
+                                                  current.position,
+                                              },
+                                            },
+                                          })
+                                        }
+                                      />
+                                    </Field>
+                                    <Field
+                                      label={`Ảnh ${index + 1}: trên / dưới`}
+                                    >
+                                      <input
+                                        type="range"
+                                        min={0}
+                                        max={100}
+                                        value={
+                                          current.imageCrops?.[id]?.y ??
+                                          current.position
+                                        }
+                                        onChange={(e) =>
+                                          section({
+                                            imageCrops: {
+                                              ...current.imageCrops,
+                                              [id]: {
+                                                x:
+                                                  current.imageCrops?.[id]?.x ??
+                                                  50,
+                                                y: Number(e.target.value),
+                                              },
+                                            },
+                                          })
+                                        }
+                                      />
+                                    </Field>
+                                  </>
+                                )}
                             </div>
                           ))}
                         </>

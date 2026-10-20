@@ -8,7 +8,12 @@ export type Section = {
   productId: string | null;
   spec: string;
   price: number | null;
-  layout: "split" | "gallery" | "compact";
+  layout: "split" | "gallery" | "compact" | "full";
+  galleryColumns?: number;
+  imageRatio?: "auto" | "square" | "landscape" | "wide" | "portrait";
+  imageGap?: number;
+  imageRadius?: number;
+  imageCrops?: Record<string, { x: number; y: number }>;
   fit: "contain" | "cover";
   position: number;
   pageBreak: boolean;
@@ -46,8 +51,13 @@ export function newSection(kind: Section["kind"]): Section {
     productId: null,
     spec: "",
     price: null,
-    layout: "split",
-    fit: "contain",
+    layout: kind === "gallery" ? "full" : "split",
+    galleryColumns: 1,
+    imageRatio: "wide",
+    imageGap: 12,
+    imageRadius: 0,
+    imageCrops: {},
+    fit: kind === "gallery" ? "cover" : "contain",
     position: 50,
     pageBreak: false,
     imageIds: [],

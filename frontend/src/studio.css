@@ -627,3 +627,85 @@
   outline: 3px solid #bc9569;
   outline-offset: 3px;
 }
+/* Full-width gallery: scoped to the chosen section, including existing galleries. */
+.cs-sheet .cs-layout-full {
+  display: block;
+  padding: 0;
+}
+.cs-sheet .cs-layout-full > .cs-copy {
+  padding: 28px 8%;
+}
+.cs-sheet .cs-custom-grid {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--cs-gallery-columns, 1), minmax(0, 1fr));
+  gap: var(--cs-gallery-gap, 12px);
+  align-items: start;
+}
+.cs-sheet .cs-custom-grid > .cs-photo {
+  grid-column: auto;
+  aspect-ratio: var(--cs-photo-ratio, 16/9);
+  border-radius: var(--cs-gallery-radius, 0);
+  max-height: none;
+}
+.cs-sheet .cs-custom-grid.cs-ratio-auto > .cs-photo:has(img) {
+  aspect-ratio: auto;
+}
+.cs-sheet .cs-custom-grid.cs-ratio-auto > .cs-photo img {
+  position: relative;
+  height: auto;
+  display: block;
+}
+.cs-image-controls {
+  border: 1px solid #dfd0c1;
+  border-radius: 8px;
+  padding: 9px;
+  margin-top: 10px;
+}
+.cs-image-controls label {
+  font-size: 12px;
+}
+@media screen and (max-width: 760px) {
+  .cs-sheet .cs-custom-grid {
+    grid-template-columns: repeat(
+      var(--cs-mobile-columns, 1),
+      minmax(0, 1fr)
+    );
+  }
+}
+.cs-phone .cs-sheet .cs-layout-full {
+  padding: 0;
+}
+.cs-phone .cs-sheet .cs-custom-grid {
+  grid-template-columns: repeat(
+    var(--cs-mobile-columns, 1),
+    minmax(0, 1fr)
+  );
+}
+@media print {
+  .cs-sheet .cs-layout-full {
+    display: block;
+    padding: 0;
+    break-inside: auto;
+  }
+  .cs-sheet .cs-layout-full > .cs-copy {
+    padding: 5mm 0;
+  }
+  .cs-sheet .cs-custom-grid {
+    max-width: none;
+    width: 100%;
+    margin: 0;
+    break-inside: auto;
+    grid-template-columns: repeat(var(--cs-gallery-columns, 1), minmax(0, 1fr));
+  }
+  .cs-sheet .cs-custom-grid > .cs-photo {
+    break-inside: avoid;
+    max-height: none;
+  }
+  .cs-sheet .cs-custom-grid.cs-ratio-auto > .cs-photo img {
+    max-height: 240mm;
+    object-fit: contain;
+  }
+}

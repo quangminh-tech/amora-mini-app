@@ -9,12 +9,14 @@ export function Photo({
   id,
   fit = "contain",
   position = 50,
+  horizontal = 50,
   onOpen,
 }: {
   documentId: string;
   id?: string | null;
   fit?: string;
   position?: number;
+  horizontal?: number;
   onOpen?: (url: string) => void;
 }) {
   const [url, setUrl] = useState(""),
@@ -57,7 +59,7 @@ export function Photo({
           alt="Ảnh catalogue"
           style={{
             objectFit: fit as "contain" | "cover",
-            objectPosition: `50% ${position}%`,
+            objectPosition: `${horizontal}% ${position}%`,
           }}
           onLoad={() => setDecoded(true)}
           onError={() => setError("Ảnh không đọc được")}
@@ -108,7 +110,32 @@ export function StudioPreview({
   }, [lightbox]);
   function photos(s: Section) {
     return (
-      <div className={"cs-photos cs-count-" + s.imageIds.length}>
+      <div
+        className={
+          "cs-photos cs-count-" +
+          s.imageIds.length +
+          (s.layout === "full"
+            ? " cs-custom-grid cs-ratio-" + (s.imageRatio || "wide")
+            : "")
+        }
+        style={
+          s.layout === "full"
+            ? ({
+                "--cs-gallery-columns": s.galleryColumns ?? 1,
+                  "--cs-mobile-columns": Math.min(s.galleryColumns ?? 1, 2),
+                "--cs-gallery-gap": `${s.imageGap ?? 12}px`,
+                "--cs-gallery-radius": `${s.imageRadius ?? 0}px`,
+                "--cs-photo-ratio": {
+                  auto: "auto",
+                  square: "1 / 1",
+                  landscape: "4 / 3",
+                  wide: "16 / 9",
+                  portrait: "3 / 4",
+                }[s.imageRatio || "wide"],
+              } as React.CSSProperties)
+            : undefined
+        }
+      >
         {s.imageIds.length ? (
           s.imageIds.map((id) => (
             <Photo
@@ -116,7 +143,8 @@ export function StudioPreview({
               documentId={documentId}
               id={id}
               fit={s.fit}
-              position={s.position}
+              position={s.imageCrops?.[id]?.y ?? s.position}
+              horizontal={s.imageCrops?.[id]?.x ?? 50}
               onOpen={setLightbox}
             />
           ))
@@ -174,17 +202,24 @@ export function StudioPreview({
               </button>
             )}
             {(s.kind === "product" || s.kind === "gallery") && photos(s)}
-            <div className="cs-copy">
-              <p className="cs-eyebrow">{s.kind === "product" ? s.sku : ""}</p>
-              <h2>{s.title}</h2>
-              {s.spec && <p className="cs-spec">{s.spec}</p>}
-              <p className="cs-description">{s.description}</p>
-              {s.kind === "product" && content.showPrices && (
-                <p className="cs-price">
-                  {s.price ? money(s.price) : "Liên hệ báo giá"}
+            {(s.title ||
+              s.description ||
+              s.spec ||
+              (s.kind === "product" && (s.sku || content.showPrices))) && (
+              <div className="cs-copy">
+                <p className="cs-eyebrow">
+                  {s.kind === "product" ? s.sku : ""}
                 </p>
-              )}
-            </div>
+                <h2>{s.title}</h2>
+                {s.spec && <p className="cs-spec">{s.spec}</p>}
+                <p className="cs-description">{s.description}</p>
+                {s.kind === "product" && content.showPrices && (
+                  <p className="cs-price">
+                    {s.price ? money(s.price) : "Liên hệ báo giá"}
+                  </p>
+                )}
+              </div>
+            )}
             {s.kind === "table" && s.columns.length > 0 && (
               <div className="cs-table-scroll">
                 <table>

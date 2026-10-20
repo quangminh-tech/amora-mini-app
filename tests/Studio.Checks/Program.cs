@@ -43,4 +43,11 @@ Test(new() { Sections = [new() { Id = Guid.NewGuid(), ImageIds = Enumerable.Rang
 Test(new() { Title = new string ('x', 181) }, true, false);
 Test(new() { Sections = [new() { Id = Guid.NewGuid(), Description = new string ('x', 5001) }] }, true, false);
 Test(new() { Sections = [new() { Id = Guid.NewGuid(), Position = 101 }] }, true, false);
+var photoIds = Enumerable.Range(0,12).Select(_=>Guid.NewGuid()).ToArray();
+Test(new() { Sections = [new() { Id=Guid.NewGuid(),Kind="gallery",Layout="full",ImageIds=photoIds,GalleryColumns=4,ImageGap=0,ImageRadius=32,ImageRatio="portrait",ImageCrops=new(){[photoIds[0]]=new(){X=0,Y=100}} }] },true,true);
+Test(new() { Sections = [new() { Id=Guid.NewGuid(),Kind="gallery",Layout="full",GalleryColumns=5 }] },true,false);
+Test(new() { Sections = [new() { Id=Guid.NewGuid(),Kind="gallery",ImageGap=-1 }] },true,false);
+Test(new() { Sections = [new() { Id=Guid.NewGuid(),Kind="gallery",ImageRatio="url(x)" }] },true,false);
+Test(new() { Sections = [new() { Id=Guid.NewGuid(),Kind="gallery",ImageIds=photoIds,ImageCrops=new(){[photoIds[0]]=new(){X=101}} }] },true,false);
+Test(new() { Sections = [new() { Id=Guid.NewGuid(),Kind="gallery",ImageCrops=new(){[Guid.NewGuid()]=new()} }] },true,false);
 Console.WriteLine($"PASS {checks} Catalogue Studio validation cases (CTV prices, limits, layouts, tables and duplicate IDs).");
