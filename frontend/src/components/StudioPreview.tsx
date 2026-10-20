@@ -1,11 +1,15 @@
+import { ScentNotes } from "./ScentNotes";
+import "../scentNotes.css";
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { request, money } from "../api";
+import { request, money, publicCatalogueRequest } from "../api";
 import { Content, Section } from "../catalogueStudio";
 import sheetCss from "../studio.css?raw";
+import scentCss from "../scentNotes.css?raw";
 
 export function Photo({
   documentId,
+  publicSlug,
   id,
   fit = "contain",
   position = 50,
@@ -13,6 +17,7 @@ export function Photo({
   onOpen,
 }: {
   documentId: string;
+  publicSlug?: string;
   id?: string | null;
   fit?: string;
   position?: number;
@@ -30,7 +35,12 @@ export function Photo({
     const controller = new AbortController();
     let objectUrl = "",
       active = true;
-    request(`/studio/${documentId}/assets/${id}`, { signal: controller.signal })
+    (publicSlug
+      ? publicCatalogueRequest(`${publicSlug}/images/${id}`, controller.signal)
+      : request(`/studio/${documentId}/assets/${id}`, {
+          signal: controller.signal,
+        })
+    )
       .then(async (res) => {
         const blob = await res!.blob();
         if (!active) return;
@@ -45,7 +55,7 @@ export function Photo({
       controller.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [documentId, id]);
+  }, [documentId, id, publicSlug]);
   return (
     <div
       className="cs-photo"
@@ -84,6 +94,7 @@ export function Photo({
 }
 export function StudioPreview({
   documentId,
+  publicSlug,
   content,
   select,
   selected,
@@ -91,6 +102,7 @@ export function StudioPreview({
   printRef,
 }: {
   documentId: string;
+  publicSlug?: string;
   content: Content;
   select?: (id: string) => void;
   selected?: string;
@@ -122,7 +134,7 @@ export function StudioPreview({
           s.layout === "full"
             ? ({
                 "--cs-gallery-columns": s.galleryColumns ?? 1,
-                  "--cs-mobile-columns": Math.min(s.galleryColumns ?? 1, 2),
+                "--cs-mobile-columns": Math.min(s.galleryColumns ?? 1, 2),
                 "--cs-gallery-gap": `${s.imageGap ?? 12}px`,
                 "--cs-gallery-radius": `${s.imageRadius ?? 0}px`,
                 "--cs-photo-ratio": {
@@ -141,6 +153,7 @@ export function StudioPreview({
             <Photo
               key={id}
               documentId={documentId}
+              publicSlug={publicSlug}
               id={id}
               fit={s.fit}
               position={s.imageCrops?.[id]?.y ?? s.position}
@@ -149,7 +162,7 @@ export function StudioPreview({
             />
           ))
         ) : (
-          <Photo documentId={documentId} />
+          <Photo documentId={documentId} publicSlug={publicSlug} />
         )}
       </div>
     );
@@ -165,6 +178,7 @@ export function StudioPreview({
             <div className="cs-cover-photo">
               <Photo
                 documentId={documentId}
+                publicSlug={publicSlug}
                 id={content.coverId}
                 fit="cover"
                 onOpen={setLightbox}
@@ -218,6 +232,16 @@ export function StudioPreview({
                     {s.price ? money(s.price) : "Liên hệ báo giá"}
                   </p>
                 )}
+              </div>
+            )}
+            {s.kind === "product" && s.showNotes !== false && (
+              <div className="cs-scent-block">
+                <ScentNotes
+                  name={s.scentName}
+                  top={s.topNotes}
+                  middle={s.middleNotes}
+                  base={s.baseNotes}
+                />
               </div>
             )}
             {s.kind === "table" && s.columns.length > 0 && (
@@ -325,7 +349,7 @@ export async function printStudio(
         }
       })();
     };
-    frame.srcdoc = `<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>${escaped}</title><style>${sheetCss}</style></head><body>${clone.outerHTML}</body></html>`;
+    frame.srcdoc = `<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>${escaped}</title><style>${sheetCss}\n${scentCss}</style></head><body>${clone.outerHTML}</body></html>`;
     document.body.append(frame);
   });
 }

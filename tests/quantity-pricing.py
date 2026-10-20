@@ -85,7 +85,7 @@ assert not preview(9,10,'b2b')['valid'] and preview(10,10,'b2b')['valid']
 assert not any(k in json.dumps(call('/api/products?includeIds='+p1,token=ctv)) for k in ['unit_cost','unitCost'])
 ov=call('/api/overview',token=ctv);assert 'completed' in ov['orders'] and not ov['team']
 backup=call('/api/admin/backup',token=a)
-assert backup['schema']=='006_quantity_pricing.sql' and len(backup['tables'])==23
+assert backup['schema']=='008_public_catalogue_and_scent_images.sql' and len(backup['tables'])==26
 assert len(backup['tables']['pricing_policies'])==2 and len(backup['tables']['product_costs'])==2
 Path(os.getenv('TEST_BACKUP_PATH',str(Path(__file__).parents[1]/'quantity-test-backup.json'))).write_text(json.dumps(backup,ensure_ascii=False))
-print('PASS: quantity boundaries, mixed SKUs, group isolation, tier precedence, missing-price blocking, CTV permissions, hidden costs, net margin, atomic rollback, stale policy/cost versions, preview token, immutable snapshots, conversion and 23-table backup.')
+print('PASS: quantity boundaries, mixed SKUs, group isolation, tier precedence, missing-price blocking, CTV permissions, hidden costs, net margin, atomic rollback, stale policy/cost versions, preview token, immutable snapshots, conversion and 26-table backup.')

@@ -211,6 +211,28 @@ export function PricingPolicies({ revision, refresh, tell }: Common) {
           <option value="b2b">Doanh nghiệp</option>
         </select>
       </div>
+      {!category && (
+        <div className="panel">
+          <h3>Thiết lập giá sỉ / doanh nghiệp trong 4 bước</h3>
+          <ol>
+            <li>Chọn nhóm sản phẩm ở trên, ví dụ Nến thơm.</li>
+            <li>Chọn Bán sỉ hoặc Doanh nghiệp. Hai kênh có bảng giá riêng.</li>
+            <li>
+              Nhập ngưỡng số lượng, hoa hồng và giá từng SKU cho mỗi bậc. Cộng
+              số lượng các SKU trong cùng nhóm, không cộng khác nhóm.
+            </li>
+            <li>
+              Bật “Kích hoạt chính sách” và “Cho CTV báo giá theo chính sách”,
+              rồi lưu.
+            </li>
+          </ol>
+          <p>
+            Ví dụ minh họa: bậc từ 20 hũ cho phép 10 White Tea + 10 Sandalwood
+            cùng nhóm. Các ngưỡng gợi ý 20 / 50 chưa có hiệu lực khi chưa lưu và
+            kích hoạt.
+          </p>
+        </div>
+      )}
       <ErrorBox error={error || loadError} />
       {loading && <Loading />}
       {draft && (
@@ -221,6 +243,17 @@ export function PricingPolicies({ revision, refresh, tell }: Common) {
           }}
         >
           <fieldset disabled={busy || loading} className="policy-fieldset">
+            <div className="notice">
+              <strong>
+                {draft.active ? "Đang kích hoạt" : "Chưa kích hoạt"} ·{" "}
+                {draft.ctvAllowed ? "Cho phép CTV" : "Chưa cho phép CTV"}
+              </strong>
+              <p>
+                Mỗi bậc dùng tổng số lượng cùng nhóm. Bậc cao nhất đạt ngưỡng
+                được chọn; SKU thiếu giá tại bậc đó sẽ bị chặn. Giá lẻ không tự
+                điền sang chính sách này.
+              </p>
+            </div>
             <div className="form-grid">
               <Field label="Tên chính sách">
                 <input

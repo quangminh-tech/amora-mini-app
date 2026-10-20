@@ -184,6 +184,11 @@ export function CatalogueStudio({ user, tell }: Common) {
         price: manager ? (d.prices[0]?.unit_price ?? null) : null,
         imageIds: [],
         imageCrops: {},
+        scentName: p.scent_name || "",
+        topNotes: p.top_notes || "",
+        middleNotes: p.middle_notes || "",
+        baseNotes: p.base_notes || "",
+        showNotes: true,
       };
       if (imageId || p.image_id) {
         const response = await request("/images/" + (imageId || p.image_id));
@@ -349,13 +354,20 @@ export function CatalogueStudio({ user, tell }: Common) {
                       version,
                     });
                     setDoc((d) =>
-                      d ? { ...d, version: r.version, published: true } : d,
+                      d
+                        ? {
+                            ...d,
+                            version: r.version,
+                            published: true,
+                            publicSlug: r.publicSlug,
+                          }
+                        : d,
                     );
-                    tell("Đã phát hành cho CTV xem trong app.");
+                    tell("Đã phát hành và tạo link landing page cho khách.");
                   })
                 }
               >
-                Phát hành cho CTV
+                Phát hành & tạo link
               </button>
             )}
             {doc.editable && (
@@ -390,6 +402,67 @@ export function CatalogueStudio({ user, tell }: Common) {
               In / Lưu PDF
             </button>
           </div>
+          {doc.publicSlug && (
+            <div className="cs-share-box">
+              <strong>Link khách xem không cần đăng nhập</strong>
+              <input
+                aria-label="Link landing page"
+                readOnly
+                value={window.location.origin + "/?catalogue=" + doc.publicSlug}
+                onFocus={(e) => e.currentTarget.select()}
+              />
+              <a
+                href={"/?catalogue=" + doc.publicSlug}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Mở bản khách xem ↗
+              </a>
+              <button
+                className="secondary"
+                onClick={() =>
+                  void run(async () => {
+                    await navigator.clipboard.writeText(
+                      window.location.origin + "/?catalogue=" + doc.publicSlug,
+                    );
+                    tell("Đã sao chép link.");
+                  })
+                }
+              >
+                Sao chép link
+              </button>
+              {manager && (
+                <button
+                  className="ghost"
+                  disabled={busy}
+                  onClick={() =>
+                    void run(async () => {
+                      if (!confirm("Đổi link? Link cũ sẽ ngừng hoạt động."))
+                        return;
+                      const r = await api(
+                        `/studio/${doc.id}/rotate-link`,
+                        "POST",
+                        { version: doc.version },
+                      );
+                      setDoc({
+                        ...doc,
+                        version: r.version,
+                        publicSlug: r.publicSlug,
+                      });
+                    })
+                  }
+                >
+                  Đổi link / vô hiệu link cũ
+                </button>
+              )}
+            </div>
+          )}
+          {editable && manager && (
+            <p className="muted">
+              Phát hành sẽ cho người có link xem tên, ảnh, giá tham khảo và liên
+              hệ trong catalogue. Kiểm tra bản xem trước trước khi phát hành.
+            </p>
+          )}
           <p className="muted">
             {publishedView
               ? "Bản đã phát hành. Thay đổi bản nháp không tự đổi bản này."
@@ -555,8 +628,56 @@ export function CatalogueStudio({ user, tell }: Common) {
                             Đổi / lấy lại dữ liệu sản phẩm
                           </button>
                           <p className="muted">
-                            Thao tác này thay tên, mô tả, quy cách, giá và ảnh
-                            chính của mục.
+                            Thao tác này thay tên, mô tả, quy cách, giá, tầng
+                            hương và ảnh chính của mục.
+                          </p>
+                          <label className="check">
+                            <input
+                              type="checkbox"
+                              checked={current.showNotes !== false}
+                              onChange={(e) =>
+                                section({ showNotes: e.target.checked })
+                              }
+                            />
+                            Hiện tầng hương đã lấy từ sản phẩm
+                          </label>
+                          {current.productId && (
+                            <button
+                              className="ghost"
+                              disabled={busy}
+                              onClick={() =>
+                                void run(async () => {
+                                  const d = await api(
+                                    "/catalogue/export-data",
+                                    "POST",
+                                    {
+                                      ids: [current.productId],
+                                      channel: "retail",
+                                    },
+                                  );
+                                  const p = d.products[0];
+                                  if (!p)
+                                    throw new Error(
+                                      "Sản phẩm không còn khả dụng.",
+                                    );
+                                  section({
+                                    scentName: p.scent_name || "",
+                                    topNotes: p.top_notes || "",
+                                    middleNotes: p.middle_notes || "",
+                                    baseNotes: p.base_notes || "",
+                                  });
+                                  tell(
+                                    "Đã cập nhật tầng hương; lưu và phát hành lại để khách thấy thay đổi.",
+                                  );
+                                })
+                              }
+                            >
+                              Cập nhật riêng tầng hương
+                            </button>
+                          )}
+                          <p className="muted">
+                            Tầng hương là bản sao khi chọn sản phẩm. Bấm cập
+                            nhật để lấy mô tả mới đã được quản lý xác nhận.
                           </p>
                           <Field label="SKU">
                             <input
@@ -1040,6 +1161,7 @@ export function CatalogueStudio({ user, tell }: Common) {
                             ...doc,
                             version: r.version,
                             published: false,
+                            publicSlug: null,
                           });
                           tell("Đã thu hồi bản phát hành.");
                         })

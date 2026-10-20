@@ -5,6 +5,7 @@ using Npgsql;
 namespace Amora;
 public static class QuantityPricing
 {
+    public static string ChannelLabel(string channel) => channel switch { "retail" => "Bán lẻ", "wholesale" => "Bán sỉ", "b2b" => "Doanh nghiệp", _ => "Không hợp lệ" };
     public const long LockKey = 71352033;
     public static async Task<PricingResult> Calculate(NpgsqlConnection c, NpgsqlTransaction tx, List<SaleLine> lines, string channel, bool manager)
     {
@@ -40,7 +41,8 @@ public static class QuantityPricing
             int? policyVersion = null;
             var groupQty = totals[p.category_id];
             var minimum = 1;
-            var label = "Bán lẻ";
+            var channelLabel = ChannelLabel(channel);
+            var label = channelLabel;
             if (policies.TryGetValue(p.category_id, out var policy))
             {
                 Check.That(manager || policy.ctv_allowed, "CTV chưa được phép dùng chính sách giá của nhóm này.", 403);
@@ -73,18 +75,18 @@ public static class QuantityPricing
             }
             else
             {
-                Check.That(manager || channel == "retail", "Nhóm này chưa có chính sách sỉ/doanh nghiệp được phép cho CTV.", 403);
+                Check.That(manager || channel == "retail", $"{p.category_name}: chưa có chính sách {channelLabel.ToLowerInvariant()} được phép cho CTV. Giá bán lẻ là bảng riêng; liên hệ quản lý hoặc chọn bảng giá bán lẻ.", 403);
                 if (legacy.TryGetValue(p.id, out var old))
                 {
                     price = old.unit_price;
                     rate = old.commission_rate;
                     minimum = old.min_qty;
-                    label = channel == "retail" ? "Bán lẻ" : "Giá cũ theo từng SKU";
+                    label = channelLabel + (channel == "retail" ? "" : " · theo từng SKU");
                     if (l.Qty < minimum)
                         error = $"{p.sku}: tối thiểu {minimum} cho riêng SKU này.";
                 }
                 else
-                    error = $"{p.sku}: chưa có giá bán.";
+                    error = $"{p.sku}: chưa có giá {channelLabel.ToLowerInvariant()} cho SKU này." + (channel == "retail" ? " Quản lý kiểm tra bảng giá lẻ theo đúng mã SKU." : " Giá bán lẻ không tự áp dụng cho kênh này. Quản lý cần thiết lập chính sách hoặc chuyển báo giá sang bảng giá bán lẻ.");
             }
 
             // Quantity policy prices cannot be manually overridden; changes go through manager's policy editor.

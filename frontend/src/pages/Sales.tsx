@@ -609,7 +609,7 @@ export function SalesPage({
                   ))}
                 </select>
               </Field>
-              <Field label="Nhu cầu khách hàng">
+              <Field label="Bảng giá áp dụng">
                 <select
                   value={form.channel}
                   onChange={(e) =>
@@ -635,9 +635,9 @@ export function SalesPage({
                     <option key={ch} value={ch}>
                       {
                         {
-                          retail: "Mua lẻ",
-                          wholesale: "Nhập bán lại",
-                          b2b: "Quà tặng doanh nghiệp",
+                          retail: "Bán lẻ",
+                          wholesale: "Bán sỉ · nhập bán lại",
+                          b2b: "Doanh nghiệp · quà tặng",
                         }[ch]
                       }
                     </option>
@@ -739,6 +739,19 @@ export function SalesPage({
                         </option>
                       ))}
                     </select>
+                    {l.productId && (
+                      <small className="block muted">
+                        {
+                          catalogue?.products.find(
+                            (p: Row) => p.id === l.productId,
+                          )?.sku
+                        }{" "}
+                        · Giá lẻ:{" "}
+                        {price(l.productId, "retail")
+                          ? money(price(l.productId, "retail").unit_price)
+                          : "Chưa thiết lập cho SKU này"}
+                      </small>
+                    )}
                   </Field>
                   <Field label="Số lượng">
                     <input
@@ -814,6 +827,47 @@ export function SalesPage({
             </button>
             <section className="pricing-explanation" aria-live="polite">
               <h3>Giá và hoa hồng của đơn này</h3>
+              <p>
+                <strong>Bảng đang áp dụng: {labels[form.channel]}</strong>. Giá
+                tính theo đúng SKU và số lượng trong nhóm sản phẩm.
+              </p>
+              {form.channel !== "retail" && (
+                <div className="notice">
+                  <p>
+                    Giá bán lẻ trong danh mục là bảng riêng. Giá{" "}
+                    {labels[form.channel].toLocaleLowerCase("vi")} cần chính
+                    sách / bảng giá của kênh này; đủ số lượng mới dùng được bậc
+                    tương ứng.
+                  </p>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() =>
+                      setForm({
+                        ...form,
+                        channel: "retail",
+                        lines: form.lines.map((l: Row) => ({
+                          ...l,
+                          unitPrice: "",
+                        })),
+                      })
+                    }
+                  >
+                    Dùng bảng giá bán lẻ cho báo giá này
+                  </button>
+                  <p className="muted">
+                    Giữ sản phẩm, số lượng và khách hàng; tính lại theo giá và
+                    hoa hồng bán lẻ.
+                  </p>
+                </div>
+              )}
+              {manager && (pricingError || pricing?.valid === false) && (
+                <p className="muted">
+                  Vào Bảng giá → Chính sách giá để kiểm tra nhóm và kênh đang
+                  chọn. Nếu báo thiếu giá lẻ, đối chiếu đúng mã SKU tại bảng Giá
+                  bán lẻ.
+                </p>
+              )}
               {!pricingReady ? (
                 <p>Chọn sản phẩm và nhập số lượng để tính giá.</p>
               ) : !pricing && !pricingError ? (

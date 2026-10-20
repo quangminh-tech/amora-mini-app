@@ -1,0 +1,250 @@
+.sn-learning {
+  min-width: 0;
+}
+.sn-welcome {
+  padding: 28px;
+  background: #eee3d5;
+  border-radius: 14px;
+  margin-bottom: 20px;
+  max-width: 1000px;
+}
+.sn-welcome h2 {
+  font:
+    36px Georgia,
+    serif;
+  margin: 12px 0;
+}
+.sn-kicker {
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: #713342;
+}
+.sn-layout {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  gap: 25px;
+  margin-top: 25px;
+}
+.sn-layout nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-self: start;
+}
+.sn-layout nav button {
+  text-align: left;
+  padding: 13px 16px;
+  border: 1px solid #dccbbb;
+  background: #fffaf5;
+  color: #302820;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.sn-layout nav button.active {
+  background: #713342;
+  color: white;
+}
+.sn-detail > h2 {
+  font:
+    34px Georgia,
+    serif;
+}
+.sn-note-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.sn-note-grid article {
+  min-width: 0;
+  padding: 18px;
+  background: #fffbf5;
+  border: 1px solid #e1d3c4;
+  border-radius: 12px;
+  color: #302820;
+  break-inside: avoid;
+}
+.sn-note-grid h3,
+.sn-note-grid h4 {
+  margin: 10px 0;
+  font:
+    23px Georgia,
+    serif;
+  color: #713342;
+}
+.sn-note-grid p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.sn-note-grid small {
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: #836b54;
+}
+.sn-layer-art {
+  display: block;
+  width: 100%;
+  max-width: 230px;
+  margin: auto;
+  height: 145px;
+}
+.sn-note-photo {
+  background: #f4ecdf;
+  aspect-ratio: 4/3;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 8px;
+  margin-bottom: 15px;
+}
+.sn-note-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.sn-note-photo small {
+  text-align: center;
+  padding: 5px;
+  letter-spacing: 0;
+}
+.sn-layer-description {
+  font-size: 12px;
+  color: #836b54;
+}
+.sn-upload {
+  font-size: 12px;
+  display: block;
+  margin-top: 15px;
+}
+.sn-upload input {
+  font-size: 11px;
+  width: 100%;
+  margin-top: 7px;
+}
+.sn-advice {
+  margin-top: 20px;
+  border-left: 3px solid #b49b73;
+  background: #eee4d8;
+  padding: 18px 24px;
+}
+.sn-notes {
+  margin-top: 20px;
+}
+.sn-notes > h3 {
+  font:
+    22px Georgia,
+    serif;
+}
+.sn-notes .sn-note-grid article {
+  padding: 12px;
+}
+.sn-notes .sn-layer-art {
+  height: 85px;
+}
+.sn-notes .sn-note-grid h4 {
+  font-size: 19px;
+}
+.sn-notes .sn-note-grid p {
+  font-size: 12px;
+}
+.cs-scent-block {
+  grid-column: 1/-1;
+}
+.cs-layout-full > .cs-scent-block {
+  padding: 0 8% 20px;
+}
+.cs-share-box {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 16px;
+  border: 1px solid #d8c5af;
+  border-radius: 10px;
+  background: #fff9ef;
+  margin: 15px 0;
+}
+.cs-share-box input {
+  width: 100%;
+  font-size: 12px;
+}
+.cs-share-box a {
+  color: #713342;
+}
+.cs-public-shell {
+  max-width: 1100px;
+  margin: auto;
+  background: #f6f0e7;
+  min-height: 100vh;
+}
+.cs-public-tools {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 22px;
+  color: #713342;
+  gap: 12px;
+}
+.cs-public-tools button,
+.cs-public-message button {
+  background: #713342;
+  color: white;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.cs-public-message {
+  padding: 35px;
+  text-align: center;
+}
+@media (max-width: 900px) {
+  .sn-layout {
+    grid-template-columns: 1fr;
+  }
+  .sn-layout nav {
+    flex-direction: row;
+    overflow: auto;
+  }
+  .sn-layout nav button {
+    min-width: 150px;
+  }
+  .sn-note-grid {
+    grid-template-columns: 1fr;
+  }
+  .sn-note-photo {
+    max-width: 380px;
+  }
+  .sn-notes .sn-note-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.cs-phone .sn-notes .sn-note-grid {
+  grid-template-columns: 1fr;
+}
+@media (max-width: 600px) {
+  .sn-notes .sn-note-grid { grid-template-columns: 1fr; }
+}
+@media print {
+  .sn-notes .sn-note-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .cs-scent-block {
+    break-inside: avoid;
+  }
+  .cs-public-tools {
+    display: none;
+  }
+  .sn-notes .sn-layer-art {
+    height: 60px;
+  }
+  .sn-notes p {
+    font-size: 9pt;
+  }
+  .sn-note-grid article {
+    padding: 3mm;
+  }
+  .sn-notes {
+    margin-top: 4mm;
+  }
+}

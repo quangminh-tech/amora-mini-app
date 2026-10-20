@@ -121,3 +121,25 @@ export const labels: Record<string, string> = {
   ctv: "Cộng tác viên",
 };
 export const parse = (v: any) => (typeof v === "string" ? JSON.parse(v) : v);
+
+// Public catalogue reads never attach staff sessions and never log a staff user out.
+export async function publicCatalogueRequest(
+  path: string,
+  signal?: AbortSignal,
+) {
+  const res = await fetch(base + "/api/public/catalogues/" + path, {
+    method: "GET",
+    credentials: "omit",
+    referrerPolicy: "no-referrer",
+    signal: signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(90000)])
+      : AbortSignal.timeout(90000),
+  });
+  if (!res.ok)
+    throw new Error(
+      res.status === 404
+        ? "Catalogue chưa phát hành hoặc link đã thu hồi."
+        : "Chưa tải được catalogue. Vui lòng thử lại.",
+    );
+  return res;
+}

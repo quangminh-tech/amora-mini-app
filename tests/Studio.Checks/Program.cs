@@ -51,3 +51,25 @@ Test(new() { Sections = [new() { Id=Guid.NewGuid(),Kind="gallery",ImageRatio="ur
 Test(new() { Sections = [new() { Id=Guid.NewGuid(),Kind="gallery",ImageIds=photoIds,ImageCrops=new(){[photoIds[0]]=new(){X=101}} }] },true,false);
 Test(new() { Sections = [new() { Id=Guid.NewGuid(),Kind="gallery",ImageCrops=new(){[Guid.NewGuid()]=new()} }] },true,false);
 Console.WriteLine($"PASS {checks} Catalogue Studio validation cases (CTV prices, limits, layouts, tables and duplicate IDs).");
+
+void Assert(bool ok,string label) { if(!ok)throw new Exception(label);checks++; }
+Test(new(){Sections=[new(){Id=Guid.NewGuid(),TopNotes=new string('x',1001)}]},true,false);
+var image=Guid.NewGuid();var unused=Guid.NewGuid();var product=Guid.NewGuid();
+var publicContent=PublicCatalogue.Decode($$"""{"title":"AMORA","owner_id":"private","cost":999,"sections":[{"id":"{{Guid.NewGuid()}}","productId":"{{product}}","topNotes":"Trà trắng","imageIds":["{{image}}"]}]}""");
+Assert(publicContent.Sections[0].ProductId is null,"Public content must strip source product IDs");
+Assert(publicContent.Sections[0].TopNotes=="Trà trắng","Notes must survive publication");
+var publicJson=System.Text.Json.JsonSerializer.Serialize(publicContent);
+Assert(!publicJson.Contains("owner_id")&&!publicJson.Contains("cost"),"Unknown private fields must be dropped");
+Assert(PublicCatalogue.HasImage(publicContent,image),"Published image must be visible");
+Assert(!PublicCatalogue.HasImage(publicContent,unused),"Unused draft image must be rejected");
+Assert(PublicCatalogue.ValidSlug(new string('a',64)),"256-bit public slug accepted");
+Assert(!PublicCatalogue.ValidSlug(new string('a',63))&&!PublicCatalogue.ValidSlug(new string('X',64)),"Malformed slug rejected");
+foreach(var (verb,url,allowed) in new[]{("GET","/api/public/catalogues/slug",true),("HEAD","/api/public/catalogues/slug/images/id",true),("POST","/api/public/catalogues/slug",false),("GET","/api/public/catalogues-evil",false),("GET","/api/studio/id",false),("DELETE","/api/studio/id",false)}){
+ var ctx=new Microsoft.AspNetCore.Http.DefaultHttpContext();ctx.Request.Method=verb;ctx.Request.Path=url;
+ Assert(PublicCatalogue.AnonymousRead(ctx)==allowed,$"Anonymous route isolation: {verb} {url}");
+}
+Console.WriteLine($"PASS {checks} total checks including public response whitelist, slug, image scope and anonymous route isolation.");
+
+Assert(QuantityPricing.ChannelLabel("b2b")=="Doanh nghiệp","Missing B2B prices must never be labelled retail");
+Assert(QuantityPricing.ChannelLabel("wholesale")=="Bán sỉ","Missing wholesale prices label");
+Console.WriteLine($"PASS {checks} total checks including correct channel labels.");

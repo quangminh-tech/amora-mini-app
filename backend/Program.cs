@@ -52,7 +52,7 @@ app.Use(async (ctx, next) =>
 app.Use(async (ctx, next) =>
 {
     var path = ctx.Request.Path.Value ?? "";
-    if (ctx.Request.Method == "OPTIONS" || path == "/health" || path == "/api/auth/login") { await next(); return; }
+    if (ctx.Request.Method == "OPTIONS" || path == "/health" || path == "/api/auth/login" || PublicCatalogue.AnonymousRead(ctx)) { await next(); return; }
     if (!path.StartsWith("/api/")) { ctx.Response.StatusCode = 404; return; }
     var header = ctx.Request.Headers.Authorization.ToString(); Check.That(header.StartsWith("Bearer ") && header.Length < 300, "Vui lòng đăng nhập.", 401);
     Actor? a;
@@ -64,7 +64,7 @@ app.Use(async (ctx, next) =>
 });
 app.UseRateLimiter();
 // Liveness must not continuously wake Neon; startup completes DB migration before listening.
-app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "amora-mini", version = "3.4.1" }));
+app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "amora-mini", version = "3.5.0" }));
 app.MapGet("/api/admin/readiness", async (HttpContext ctx, Db db) =>
 {
     ctx.Manager(); await using var c = await db.Open();
@@ -78,7 +78,7 @@ app.MapPost("/api/admin/storage-check", async (HttpContext ctx, ObjectStorage st
     return Results.Ok(new { storage = "ok", checkedAt = DateTime.UtcNow });
 });
 app.MapOverview(); app.MapAuth(); app.MapDirectories(); app.MapTransfers(); app.MapCatalogue();
-app.MapCatalogueStudio();
+app.MapCatalogueStudio(); app.MapPublicCatalogue(); app.MapScentLearning();
 app.MapPricing(); app.MapDocuments(); app.MapCustomers(); app.MapSales(); app.MapConversion(); app.MapAdmin();
 for (var attempt = 1; ; attempt++)
 {

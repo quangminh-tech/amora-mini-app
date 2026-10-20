@@ -1,3 +1,5 @@
+import { PublicCatalogue } from "./pages/PublicCatalogue";
+import { ScentLearning } from "./pages/ScentLearning";
 import { CatalogueStudio } from "./pages/CatalogueStudio";
 import { CtvPrices } from "./pages/CtvPrices";
 import { CtvPolicy } from "./components/CtvPolicy";
@@ -30,6 +32,7 @@ const routes = [
   ["users", "Cộng tác viên"],
   ["products", "Danh mục sản phẩm"],
   ["catalogue", "Catalogue"],
+  ["scent-learning", "Hiểu mùi hương"],
   ["prices", "Bảng giá"],
   ["quotes", "Báo giá"],
   ["orders", "Đơn hàng"],
@@ -39,7 +42,7 @@ const routes = [
   ["templates", "Mẫu chứng từ"],
   ["settings", "Thiết lập"],
 ] as const;
-export default function App() {
+function PrivateApp() {
   const [user, setUser] = useState<User | null>(null),
     [loading, setLoading] = useState(!!token()),
     [page, setPage] = useState("dashboard"),
@@ -263,6 +266,7 @@ export default function App() {
           {page === "dashboard" && <Dashboard {...common} navigate={setPage} />}
           {page === "products" && <Products {...common} />}
           {page === "catalogue" && <CatalogueStudio {...common} />}
+          {page === "scent-learning" && <ScentLearning {...common} />}
           {page === "prices" &&
             (manager ? <Prices {...common} /> : <CtvPrices {...common} />)}
           {page === "customers" && <Customers {...common} />}
@@ -292,4 +296,12 @@ export default function App() {
       )}
     </div>
   );
+}
+
+export default function App() {
+  const slug =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("catalogue")
+      : null;
+  return slug !== null ? <PublicCatalogue slug={slug} /> : <PrivateApp />;
 }

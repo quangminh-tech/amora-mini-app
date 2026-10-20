@@ -15,6 +15,7 @@ import {
 export function Icon({ name }: { name: string }) {
   const paths: Record<string, string> = {
     dashboard: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z",
+    "scent-learning": "M12 3C8 8 5 11 5 15a7 7 0 0 0 14 0c0-4-3-7-7-12zM8 15c0 3 2 4 4 4",
     catalogue: "M3 4h7l2 2 2-2h7v16h-7l-2 2-2-2H3zM12 6v16",
     products: "M4 7l8-4 8 4v10l-8 4-8-4zM4 7l8 4 8-4M12 11v10",
     prices: "M3 3h8l10 10-8 8L3 11zM7 7h.01",

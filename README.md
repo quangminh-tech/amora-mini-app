@@ -1,3 +1,7 @@
+# AMORA Mini 3.5 — Landing page, tầng hương và bảng giá
+
+Đọc [Hướng dẫn 3.5](HUONG-DAN-3.5.md), [báo cáo rà soát](BAO-CAO-RA-SOAT-3.5.md) và [danh sách file](FILES-3.5.md). Deploy backend trước frontend; migration mới 008, không reset DB.
+
 # AMORA Mini 3.3 — Chính sách giá theo số lượng & dashboard CTV
 
 Xem [phân tích CSDL, luồng CTV và triển khai](docs/PRICING-CTV-3.3.md). Danh sách file: CHANGED-FILES-3.3.txt. Deploy backend trước frontend; không reset database.

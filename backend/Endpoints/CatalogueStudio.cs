@@ -11,7 +11,7 @@ public static class CatalogueStudio
     private static Guid[] Images(StudioContent content) => content.Sections.SelectMany(x => x.ImageIds).Append(content.CoverId ?? Guid.Empty).Where(x => x != Guid.Empty).Distinct().ToArray();
     private static async Task<StudioRow> Read(NpgsqlConnection c, Guid id, NpgsqlTransaction? tx = null, bool locked = false)
     {
-        var row = await c.QuerySingleOrDefaultAsync<StudioRow>("SELECT id,owner_id AS OwnerId,name,content::text AS Content,published_content::text AS PublishedContent,published_name AS PublishedName,version,archived FROM catalogue_documents WHERE id=@id" + (locked ? " FOR UPDATE" : ""), new { id }, tx);
+        var row = await c.QuerySingleOrDefaultAsync<StudioRow>("SELECT id,owner_id AS OwnerId,name,content::text AS Content,published_content::text AS PublishedContent,published_name AS PublishedName,version,archived,public_slug AS PublicSlug,public_enabled AS PublicEnabled FROM catalogue_documents WHERE id=@id" + (locked ? " FOR UPDATE" : ""), new { id }, tx);
         Check.That(row is not null && !row.Archived, "Không tìm thấy catalogue.", 404);
         return row!;
     }
@@ -51,6 +51,7 @@ public static class CatalogueStudio
             Check.Text(s.Description, 5000);
             Check.Text(s.Sku, 80);
             Check.Text(s.Spec, 300);
+            Check.Text(s.ScentName,180); Check.Text(s.TopNotes,1000); Check.Text(s.MiddleNotes,1000); Check.Text(s.BaseNotes,1000);
             Check.That(s.Price is null or > 0 and <= 1000000000, "Giá không hợp lệ.");
             Check.That(manager || s.Price is null, "CTV không nhập giá trong catalogue.", 403);
             Check.That(s.ImageIds is not null && s.ImageIds.Length <= (s.Kind == "gallery" ? 12 : 4) && !s.ImageIds.Contains(Guid.Empty) && s.ImageIds.Distinct().Count() == s.ImageIds.Length, "Bộ ảnh tối đa 12 ảnh; mục sản phẩm tối đa 4 ảnh khác nhau.");
@@ -113,7 +114,7 @@ public static class CatalogueStudio
             await using var c = await db.Open();
             var row = await Read(c, id);
             var content = Visible(ctx, row, published == true);
-            return Results.Ok(new { id, name = published == true ? row.PublishedName ?? row.Name : ctx.User().Manager || row.OwnerId == ctx.User().Id ? row.Name : row.PublishedName, content, version = row.Version, editable = ctx.User().Manager || row.OwnerId == ctx.User().Id, published = row.PublishedContent is not null });
+            return Results.Ok(new { id, name = published == true ? row.PublishedName ?? row.Name : ctx.User().Manager || row.OwnerId == ctx.User().Id ? row.Name : row.PublishedName, content, version = row.Version, editable = ctx.User().Manager || row.OwnerId == ctx.User().Id, published = row.PublishedContent is not null, publicSlug = row.PublicEnabled ? row.PublicSlug : null });
         });
         app.MapPut("/api/studio/{id:guid}", async (Guid id, StudioSave r, HttpContext ctx, Db db) =>
         {
@@ -141,10 +142,11 @@ public static class CatalogueStudio
             var row = await Read(c, id, tx, true);
             Check.That(row.Version == r.Version, "Catalogue đã thay đổi. Tải lại trước khi phát hành.", 409);
             Check.That(Unpack(row.Content).Sections.Count > 0, "Thêm nội dung trước khi phát hành.");
-            await c.ExecuteAsync("UPDATE catalogue_documents SET published_content=content,published_name=name,published_at=now(),version=version+1,updated_at=now() WHERE id=@id", new { id }, tx);
+            var slug=row.PublicSlug ?? Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
+            await c.ExecuteAsync("UPDATE catalogue_documents SET published_content=content,published_name=name,published_at=now(),public_enabled=true,public_slug=@slug,version=version+1,updated_at=now() WHERE id=@id", new { id,slug }, tx);
             await db.Audit(c, tx, ctx.User().Id, "catalogue_published", id);
             await tx.CommitAsync();
-            return Results.Ok(new { version = row.Version + 1 });
+            return Results.Ok(new { version = row.Version + 1, publicSlug=slug });
         });
         app.MapPost("/api/studio/{id:guid}/unpublish", async (Guid id, StudioVersion r, HttpContext ctx, Db db) =>
         {
@@ -153,7 +155,7 @@ public static class CatalogueStudio
             await using var tx = await c.BeginTransactionAsync();
             var row = await Read(c, id, tx, true);
             Check.That(row.Version == r.Version, "Dữ liệu đã thay đổi. Tải lại.", 409);
-            await c.ExecuteAsync("UPDATE catalogue_documents SET published_content=NULL,published_name=NULL,published_at=NULL,version=version+1,updated_at=now() WHERE id=@id", new { id }, tx);
+            await c.ExecuteAsync("UPDATE catalogue_documents SET public_enabled=false,public_slug=NULL,published_content=NULL,published_name=NULL,published_at=NULL,version=version+1,updated_at=now() WHERE id=@id", new { id }, tx);
             await db.Audit(c, tx, ctx.User().Id, "catalogue_unpublished", id);
             await tx.CommitAsync();
             return Results.Ok(new { version = row.Version + 1 });
@@ -166,10 +168,17 @@ public static class CatalogueStudio
             Editable(ctx, row);
             Check.That(ctx.User().Manager || row.PublishedContent is null, "Nhờ quản lý thu hồi bản phát hành trước.", 403);
             Check.That(row.Version == r.Version, "Dữ liệu đã thay đổi. Tải lại.", 409);
-            await c.ExecuteAsync("UPDATE catalogue_documents SET archived=true,version=version+1,updated_at=now() WHERE id=@id", new { id }, tx);
+            await c.ExecuteAsync("UPDATE catalogue_documents SET public_enabled=false,archived=true,version=version+1,updated_at=now() WHERE id=@id", new { id }, tx);
             await db.Audit(c, tx, ctx.User().Id, "catalogue_archived", id);
             await tx.CommitAsync();
             return Results.NoContent();
+        });
+        app.MapPost("/api/studio/{id:guid}/rotate-link",async(Guid id,StudioVersion r,HttpContext ctx,Db db)=>{
+            ctx.Manager();await using var c=await db.Open();await using var tx=await c.BeginTransactionAsync();var row=await Read(c,id,tx,true);
+            Check.That(row.Version==r.Version && row.PublicEnabled,"Bản phát hành đã thay đổi hoặc chưa bật link. Tải lại.",409);
+            var slug=Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
+            await c.ExecuteAsync("UPDATE catalogue_documents SET public_slug=@slug,version=version+1,updated_at=now() WHERE id=@id",new{id,slug},tx);
+            await db.Audit(c,tx,ctx.User().Id,"catalogue_link_rotated",id);await tx.CommitAsync();return Results.Ok(new{version=row.Version+1,publicSlug=slug});
         });
         app.MapPost("/api/studio/{id:guid}/copy", async (Guid id, HttpContext ctx, Db db) =>
         {
@@ -300,6 +309,11 @@ public sealed class StudioSection
     public string Sku { get; set; } = "";
     public Guid? ProductId { get; set; }
     public string Spec { get; set; } = "";
+    public string ScentName {get;set;}="";
+    public string TopNotes {get;set;}="";
+    public string MiddleNotes {get;set;}="";
+    public string BaseNotes {get;set;}="";
+    public bool ShowNotes {get;set;}=true;
     public decimal? Price { get; set; }
     public string Layout { get; set; } = "split";
     public string Fit { get; set; } = "contain";
@@ -328,6 +342,8 @@ public sealed class StudioRow
     public string? PublishedName { get; set; }
     public int Version { get; set; }
     public bool Archived { get; set; }
+    public string? PublicSlug {get;set;}
+    public bool PublicEnabled {get;set;}
 }
 
 public sealed class StudioAsset

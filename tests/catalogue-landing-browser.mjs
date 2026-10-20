@@ -1,0 +1,43 @@
+// Mocked browser regression; no production credentials or data.
+import http from 'node:http';
+import {readFile,mkdtemp} from 'node:fs/promises';
+import {fileURLToPath} from 'node:url';
+import path from 'node:path';
+import {tmpdir} from 'node:os';
+import assert from 'node:assert/strict';
+import {chromium} from '../frontend/node_modules/playwright/index.mjs';
+const dist=fileURLToPath(new URL('../frontend/dist/',import.meta.url));
+const temporary=await mkdtemp(path.join(tmpdir(),'amora-landing-'));
+const server=http.createServer(async(req,res)=>{try{let p=new URL(req.url,'http://x').pathname;if(p==='/')p='/index.html';res.setHeader('Content-Type',p.endsWith('.js')?'text/javascript':p.endsWith('.css')?'text/css':'text/html');res.end(await readFile(path.join(dist,p)));}catch{res.writeHead(404);res.end();}});await new Promise(r=>server.listen(0,'127.0.0.1',r));
+const base=`http://127.0.0.1:${server.address().port}`;const browser=await chromium.launch({args:['--no-sandbox']});const page=await browser.newPage({viewport:{width:1440,height:1050}});
+const errors=[];page.on('pageerror',e=>errors.push(e.message));const slug='a'.repeat(64),id='00000000-0000-4000-8000-000000000001',image='00000000-0000-4000-8000-000000000002';
+const png=await readFile(dist+'/brand/amora-logo.png');let revoked=false,role='manager',privateCalls=0,uploads=0;const publicRequests=[];
+const content={title:'Một khoảng yên',subtitle:'Simple Moments. Deep Calm.',intro:'Bộ sưu tập AMORA',contact:'CÔNG TY TNHH AMORA STUDIO',note:'Thông tin xác nhận khi báo giá.',theme:'cream',motion:true,showPrices:false,coverId:null,sections:[{id,kind:'product',title:'AMORA Sandalwood',description:'Hương gỗ',sku:'NT-TEST-220',spec:'220g',layout:'split',fit:'contain',position:50,imageIds:[image],scentName:'Sandalwood',topNotes:'Gỗ tuyết tùng',middleNotes:'Đàn hương',baseNotes:'Xạ hương',showNotes:true}]};
+await page.addInitScript(()=>sessionStorage.setItem('amora-token','test-staff-token'));
+await page.route('**/api/**',async route=>{const req=route.request(),u=new URL(req.url()),p=u.pathname;const ok=d=>route.fulfill({json:d});
+ if(p.startsWith('/api/public/')){publicRequests.push({path:p,headers:req.headers()});if(revoked)return route.fulfill({status:404,json:{message:'Thu hồi'}});if(p.includes('/images/'))return route.fulfill({contentType:'image/png',body:png});return ok({content});}privateCalls++;
+ if(p==='/api/auth/me')return ok({id,name:'AMORA Test',role,mustChangePassword:false});
+ if(p.startsWith('/api/overview'))return ok({quotes:{},orders:{},commissions:{},live:{},recent:[],team:[],missingPrices:0,activeCtvs:5});
+ if(p==='/api/scent-learning')return ok([{id,name:'Sandalwood',meaning:'Hương gỗ',top_notes:'Gỗ tuyết tùng',middle_notes:'Đàn hương',base_notes:'Xạ hương',ritual:'Một khoảng yên.',active:true,has_top_image:uploads>0}]);
+ if(p.includes('/scent-learning/')&&req.method()==='POST'){uploads++;return route.fulfill({status:204});}
+ if(p.includes('/scent-learning/'))return route.fulfill({contentType:'image/png',body:png});
+ if(p.startsWith('/api/pricing/policies'))return ok({policies:[],tiers:[]});
+ if(p.startsWith('/api/directories/product-categories'))return ok([{id,code:'CANDLE',name:'Nến thơm'}]);
+ if(p.startsWith('/api/pricing/editor'))return ok({policy:null,products:[],tiers:[],prices:[]});
+ if(p.startsWith('/api/quotes'))return ok({items:[],total:0,page:1,pageSize:25});
+ if(p.startsWith('/api/customers'))return ok({items:[],total:0});
+ if(p.startsWith('/api/products'))return ok({products:[{id,name:'Nến Sandalwood',sku:'NT-TEST-220',active:true}],prices:[{product_id:id,channel:'retail',unit_price:279000,min_qty:1,commission_rate:10}],images:[],total:1});
+ if(p==='/api/pricing/preview'){const b=req.postDataJSON();return ok({valid:b.channel==='retail',lines:b.lines.map(l=>({productId:l.productId,productName:'Nến Sandalwood',qty:l.qty,group:'Nến thơm',groupQty:l.qty,policy:b.channel==='retail'?'Bán lẻ':'Doanh nghiệp',error:b.channel==='retail'?null:'Chưa có giá doanh nghiệp.',unitPrice:b.channel==='retail'?279000:null,amount:279000*l.qty,commissionRate:10,commission:27900*l.qty})),subtotal:279000,commission:27900,token:'test'});}
+ if(p==='/api/settings')return ok({ctvQuotes:true});if(p==='/api/document-templates')return ok({templates:[]});if(p.startsWith('/api/admin/users'))return ok([]);return ok([]);
+});
+await page.goto(base+'/?catalogue='+slug);await page.locator('.cs-photo[data-state=ready]').waitFor();
+assert.equal(privateCalls,0);assert(publicRequests.every(r=>!r.headers.authorization));assert.equal(await page.getByRole('button',{name:'Catalogue',exact:true}).count(),0);assert.equal(await page.locator('.cs-edit-only').count(),0);assert.match(await page.locator('.sn-notes').innerText(),/Đàn hương/);
+await page.getByRole('button',{name:'In / Lưu PDF'}).click();await page.locator('#cs-print-frame').waitFor({state:'attached'});assert.match(await page.frameLocator('#cs-print-frame').locator('body').innerText(),/Gỗ tuyết tùng/);
+await page.setViewportSize({width:390,height:844});await page.screenshot({path:path.join(temporary,'landing-mobile.png'),fullPage:true});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1));
+revoked=true;await page.reload();await page.getByRole('alert').waitFor();assert.equal(await page.locator('.cs-sheet').count(),0);const before=publicRequests.length;await page.goto(base+'/?catalogue=invalid');await page.getByRole('alert').waitFor();assert.equal(publicRequests.length,before);
+await page.setViewportSize({width:1440,height:1050});await page.goto(base);await page.getByRole('button',{name:'Hiểu mùi hương',exact:true}).click();await page.getByRole('heading',{name:'Sandalwood',exact:true}).waitFor();assert.equal(await page.locator('.sn-note-grid article').count(),3);assert.equal(await page.locator('.sn-layer-art').count(),3);
+await page.locator('.sn-upload input').first().setInputFiles({name:'note.png',mimeType:'image/png',buffer:png});await page.locator('.sn-note-photo img').waitFor();assert.equal(uploads,1);await page.screenshot({path:path.join(temporary,'scent-learning.png'),fullPage:true});
+await page.getByRole('button',{name:'Bảng giá',exact:true}).click();await page.getByRole('heading',{name:'Thiết lập giá sỉ / doanh nghiệp trong 4 bước'}).waitFor();await page.getByLabel('Nhóm chính sách').selectOption(id);await page.getByText('Chưa kích hoạt',{exact:false}).first().waitFor();
+await page.getByRole('button',{name:'Báo giá',exact:true}).click();await page.getByRole('button',{name:'+ Tạo báo giá',exact:true}).click();await page.getByLabel('Bảng giá áp dụng',{exact:false}).selectOption('b2b');await page.locator('.sale-line select').first().selectOption(id);await page.getByText('Chưa có giá doanh nghiệp.',{exact:true}).waitFor();assert.match(await page.locator('.sale-lines').innerText(),/279.000/);await page.getByRole('button',{name:'Dùng bảng giá bán lẻ cho báo giá này'}).click();await page.getByText('Bảng đang áp dụng: Bán lẻ',{exact:true}).waitFor();assert.equal(await page.locator('.sale-line select').first().inputValue(),id);
+role='ctv';await page.reload();await page.getByRole('button',{name:'Hiểu mùi hương',exact:true}).click();await page.getByRole('heading',{name:'Sandalwood',exact:true}).waitFor();assert.equal(await page.locator('.sn-upload').count(),0);
+assert.deepEqual(errors,[]);console.log('PASS public no-login/no-token, images, notes, mobile, PDF iframe, revoked/invalid link, note photo upload, CTV read-only, setup help, B2B message and explicit retail switch. Mocked API. Screenshots: '+temporary);await browser.close();server.close();

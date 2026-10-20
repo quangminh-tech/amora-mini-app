@@ -26,9 +26,9 @@ await page.route('**/api/**',async route=>{const req=route.request(),u=new URL(r
  if(path==='/api/studio'&&method==='POST'){const b=req.postDataJSON();doc={id:did,name:b.name,version:1,editable:true,published:false,content:{title:b.name,subtitle:'Simple Moments. Deep Calm.',intro:'',contact:'CÔNG TY TNHH AMORA STUDIO',note:'Điều kiện xác nhận khi đặt hàng.',theme:'cream',motion:true,showPrices:false,coverId:null,sections:[]}};return ok({id:did});}
  if(path===`/api/studio/${did}`&&method==='GET')return ok(u.searchParams.has('published')?{...doc,content:published}:doc);
  if(path===`/api/studio/${did}`&&method==='PUT'){const b=req.postDataJSON();assert.equal(b.version,doc.version);doc={...doc,...b,version:doc.version+1};return ok({version:doc.version});}
- if(path===`/api/studio/${did}/publish`){published=structuredClone(doc.content);doc.version++;doc.published=true;return ok({version:doc.version});}
+ if(path===`/api/studio/${did}/publish`){published=structuredClone(doc.content);doc.version++;doc.published=true;doc.publicSlug='a'.repeat(64);return ok({version:doc.version,publicSlug:doc.publicSlug});}
  if(path==='/api/products')return ok({products:[{id:pid,name:'Nến Sandalwood 220g',sku:'NT-TEST-220',size_label:'220g',color_label:'Đen'}],images:[],prices:[],total:1});
- if(path==='/api/catalogue/export-data')return ok({products:[{id:pid,name:'Sandalwood',model_name:'AMORA Sandalwood',sku:'NT-TEST-220',size_label:'220g',color_label:'Đen',description:'Hương gỗ ấm áp.',unit:'lọ'}],prices:[{product_id:pid,unit_price:279000}]});
+ if(path==='/api/catalogue/export-data')return ok({products:[{id:pid,name:'Sandalwood',model_name:'AMORA Sandalwood',sku:'NT-TEST-220',size_label:'220g',color_label:'Đen',description:'Hương gỗ ấm áp.',unit:'lọ',scent_name:'Sandalwood',top_notes:'Gỗ tuyết tùng',middle_notes:'Đàn hương',base_notes:'Xạ hương'}],prices:[{product_id:pid,unit_price:279000}]});
  if(path.endsWith('/assets')&&method==='POST'){assetIds.push(aid);return ok({id:aid});}
  if(path.endsWith('/assets'))return ok(assetIds.map(id=>({id,caption:'Ảnh thử'})));
  if(path.includes('/assets/'))return route.fulfill({contentType:'image/png',body:png});
@@ -70,8 +70,10 @@ assert.equal(await page.locator('.cs-layout-full .cs-photo img').evaluate(el=>el
 await page.getByRole('button',{name:'Lưu',exact:true}).click();
 await page.getByText('Đã lưu catalogue.',{exact:false}).waitFor();
 assert.equal(doc.content.sections.length,3);
-await page.getByRole('button',{name:'Phát hành cho CTV'}).click();
-await page.getByText('Đã phát hành cho CTV xem trong app.',{exact:false}).waitFor();
+await page.getByRole('button',{name:'Phát hành & tạo link'}).click();
+await page.getByText('Đã phát hành và tạo link landing page cho khách.',{exact:false}).waitFor();
+assert.match(await page.getByLabel('Link landing page').inputValue(),/catalogue=a{64}$/);
+assert.equal(doc.content.sections[0].topNotes,'Gỗ tuyết tùng');
 await page.getByLabel('Tiêu đề trên bìa').fill('Bản nháp đã thay đổi');
 assert.equal(published.title,'Một khoảng yên cho bạn');
 // Navigation guard must keep dirty content when cancelled.
@@ -95,7 +97,7 @@ await page.setViewportSize({width:390,height:844});
 console.log('PASS full gallery: width, three columns, gap, radius, independent crop and no empty caption; manager: menu, create, product snapshot, image upload/render, print iframe, custom text, generated table, save, publish snapshot, dirty navigation guard, mobile, print CSS.');
 // CTV must not see manual pricing or publication controls.
 role='ctv';await page.setViewportSize({width:1440,height:1050});await page.reload();await page.getByRole('button',{name:'Catalogue',exact:true}).click();await page.getByRole('button',{name:'Mở / chỉnh sửa',exact:true}).click();
-assert.equal(await page.getByRole('button',{name:'Phát hành cho CTV'}).count(),0);
+assert.equal(await page.getByRole('button',{name:'Phát hành & tạo link'}).count(),0);
 assert.equal(await page.getByLabel('Hiện giá lẻ tham khảo').count(),0);
 console.log('PASS CTV controls; no runtime errors.');
 await browser.close();server.close();

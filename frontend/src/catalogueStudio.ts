@@ -7,6 +7,11 @@ export type Section = {
   sku: string;
   productId: string | null;
   spec: string;
+  scentName?: string;
+  topNotes?: string;
+  middleNotes?: string;
+  baseNotes?: string;
+  showNotes?: boolean;
   price: number | null;
   layout: "split" | "gallery" | "compact" | "full";
   galleryColumns?: number;
@@ -40,6 +45,7 @@ export type StudioDocument = {
   version: number;
   editable: boolean;
   published: boolean;
+  publicSlug?: string | null;
 };
 export function newSection(kind: Section["kind"]): Section {
   return {
@@ -66,11 +72,7 @@ export function newSection(kind: Section["kind"]): Section {
   };
 }
 // Photos are flattened to JPEG so exported documents have no external-image dependencies.
-export async function uploadStudioImage(
-  documentId: string,
-  file: Blob,
-  caption = "",
-): Promise<string> {
+export async function compressCatalogueImage(file: Blob): Promise<Blob> {
   if (file.size > 12 * 1024 * 1024) throw new Error("Ảnh nguồn tối đa 12 MB.");
   const bitmap = await createImageBitmap(file);
   try {
@@ -95,16 +97,25 @@ export async function uploadStudioImage(
     canvas.width = canvas.height = 1;
     if (jpeg.size > 2 * 1024 * 1024)
       throw new Error("Ảnh sau nén vẫn quá 2 MB. Chọn ảnh nhỏ hơn.");
-    const form = new FormData();
-    form.append("file", jpeg, "catalogue.jpg");
-    form.append("caption", caption.slice(0, 180));
-    return (
-      await (await request(`/studio/${documentId}/assets`, {
-        method: "POST",
-        body: form,
-      }))!.json()
-    ).id;
+    return jpeg;
   } finally {
     bitmap.close();
   }
+}
+
+export async function uploadStudioImage(
+  documentId: string,
+  file: Blob,
+  caption = "",
+): Promise<string> {
+  const jpeg = await compressCatalogueImage(file);
+  const form = new FormData();
+  form.append("file", jpeg, "catalogue.jpg");
+  form.append("caption", caption.slice(0, 180));
+  return (
+    await (await request(`/studio/${documentId}/assets`, {
+      method: "POST",
+      body: form,
+    }))!.json()
+  ).id;
 }

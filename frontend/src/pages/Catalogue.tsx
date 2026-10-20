@@ -364,7 +364,7 @@ export function Products({ user, revision, refresh, tell }: Common) {
       <p className="muted">
         {tab === "models"
           ? "Một mẫu có nhiều SKU theo mùi và size. Tạo mẫu trước rồi thêm từng phiên bản."
-          : "Mỗi dòng là một phiên bản bán riêng; giá, MOQ và hoa hồng áp dụng theo SKU."}
+          : "Mỗi dòng là một SKU. Giá lẻ, MOQ lẻ và hoa hồng lẻ hiển thị ở đây. Giá sỉ / doanh nghiệp tính số lượng cộng theo nhóm tại Bảng giá → Sỉ & doanh nghiệp."}
       </p>
       <ErrorBox
         error={
@@ -411,7 +411,7 @@ export function Products({ user, revision, refresh, tell }: Common) {
                     <th>Mùi</th>
                     <th>Size / màu cốc</th>
                     <th>Giá lẻ</th>
-                    <th>MOQ / HH</th>
+                    <th>MOQ lẻ / HH lẻ</th>
                     <th>Chuẩn bị</th>
                     <th>Hiển thị</th>
                     <th />
