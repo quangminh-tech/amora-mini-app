@@ -50,11 +50,10 @@ export function Dashboard({
           number: true,
         },
         {
-          label: "Báo giá chờ phản hồi",
-          value: d.live.waiting,
-          note: "Hiện tại · còn hiệu lực",
-          page: "quotes",
-          number: true,
+          label: "Giá trị đơn trong kỳ",
+          value: d.orders.booked,
+          note: `${d.orders.created_count} đơn tạo trong kỳ · gồm vận chuyển · trừ hủy/trả`,
+          page: "orders",
         },
         {
           label: "Tiền hàng hoàn tất",
@@ -182,6 +181,11 @@ export function Dashboard({
               </button>
             ))}
           </div>
+          <p className="notice">
+            Đã thu ròng trong kỳ: <strong>{money(d.collected)}</strong> · theo ngày thu,
+            gồm vận chuyển và điều chỉnh. Giá trị đơn hiển thị ngay khi tạo đơn;
+            tiền hàng hoàn tất tính khi giao xong. Báo giá được chấp nhận cần chuyển thành đơn.
+          </p>
           <div className="dashboard-alerts">
             <button onClick={() => navigate("quotes")}>
               <span className="alert-mark">!</span>

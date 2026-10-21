@@ -38,6 +38,7 @@ export function SalesPage({
   const quote = type === "quotes",
     manager = user.role === "manager";
   const [page, setPage] = useState(1);
+  const [showDetailed, setShowDetailed] = useState(false);
   const [search, setSearch] = useState(""),
     [filter, setFilter] = useState("");
   const term = useDebounced(search);
@@ -179,6 +180,7 @@ export function SalesPage({
     }
   }
   async function open(id: string) {
+    setShowDetailed(false);
     setErr("");
     setBusy(true);
     try {
@@ -311,7 +313,7 @@ export function SalesPage({
       setAction(null);
       refresh();
       await open(detail.record.id);
-      tell("Đã cập nhật.");
+      tell(action.kind === "complete" ? "Đã hoàn tất đơn, ghi nhận tiền còn thiếu và cập nhật hoa hồng đủ điều kiện." : "Đã cập nhật.");
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -1056,7 +1058,25 @@ export function SalesPage({
               <p className="pre-line">{detail.record.terms}</p>
             </>
           )}
+          {!quote && (
+            <p className="notice">
+              Đơn đã được tính vào giá trị đơn trên Tổng quan nếu nằm trong kỳ và chưa hủy/trả.
+              {manager
+                ? " Khi đã giao xong và nhận đủ tiền, dùng Hoàn tất & thu đủ. Nếu đang nhận cọc hoặc giao hàng, dùng các bước chi tiết bên dưới."
+                : " Quản lý xác nhận giao xong và thu đủ để ghi nhận hoa hồng đủ điều kiện."}
+            </p>
+          )}
           <div className="detail-actions">
+            {!quote && manager &&
+              (["pending", "confirmed", "shipping"].includes(detail.record.status) ||
+                (detail.record.status === "completed" && Number(detail.record.paid) < Number(detail.record.subtotal) + Number(detail.record.shipping))) && (
+                <button className="primary" disabled={busy} onClick={() => {
+                  setErr("");
+                  setAction({ kind: "complete" });
+                }}>
+                  Hoàn tất & thu đủ
+                </button>
+              )}
             {quote &&
               detail.record.status === "accepted" &&
               (manager || settings?.ctvQuotes) && (
@@ -1154,6 +1174,13 @@ export function SalesPage({
                 {pdfProgress && <Loading label={pdfProgress} />}
               </>
             )}
+            {!quote && manager && (
+              <button className="ghost" type="button" aria-expanded={showDetailed}
+                onClick={() => setShowDetailed(!showDetailed)}>
+                {showDetailed ? "Ẩn thao tác chi tiết" : "Thao tác chi tiết / nhận cọc"}
+              </button>
+            )}
+            <div hidden={!quote && manager && !showDetailed}>
             {!quote &&
               manager &&
               !["cancelled", "returned"].includes(detail.record.status) && (
@@ -1208,15 +1235,22 @@ export function SalesPage({
                 {labels[s]}
               </button>
             ))}
+            </div>
           </div>
           {action && (
             <form onSubmit={doAction} className="inline-action">
               <h3>
                 {action.kind === "payment"
                   ? "Cập nhật tổng tiền đã thu"
-                  : labels[action.status]}
+                  : action.kind === "complete" ? "Hoàn tất & thu đủ" : labels[action.status]}
               </h3>
-              {action.kind === "payment" ? (
+              {action.kind === "complete" ? (
+                <p className="notice">
+                  Xác nhận khách đã nhận hàng và bạn đã thu đủ {money(Number(detail.record.subtotal) + Number(detail.record.shipping))}.
+                  Hệ thống ghi thêm {money(Number(detail.record.subtotal) + Number(detail.record.shipping) - Number(detail.record.paid))},
+                  hoàn tất đơn và tạo hoa hồng đủ điều kiện. Không cần chuyển từng trạng thái.
+                </p>
+              ) : action.kind === "payment" ? (
                 <>
                   <Field label="Tổng số tiền đã thu lũy kế (không phải tiền thu thêm)">
                     <input

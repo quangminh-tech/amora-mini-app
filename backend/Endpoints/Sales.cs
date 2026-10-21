@@ -68,6 +68,40 @@ public static class Sales
             await Event(c, tx, id, ctx.User().Id, "status", new { from = current, to = target, reason = Check.Text(r.Reason, 1000) });
             await SyncCommission(c, tx, id); await db.Audit(c, tx, ctx.User().Id, "order_status", id, new { from = current, to = target }); await tx.CommitAsync(); return Results.NoContent();
         });
+        // A deliberate manager action: deliver + collect the remaining balance atomically.
+        // Keep the detailed shipping/payment flow for deposits and deliveries still in progress.
+        app.MapPost("/api/orders/{id:guid}/complete", async (Guid id, VersionRequest r, HttpContext ctx, Db db) =>
+        {
+            ctx.Manager();
+            await using var c = await db.Open();
+            await using var tx = await c.BeginTransactionAsync();
+            var o = await c.QuerySingleOrDefaultAsync("SELECT * FROM orders WHERE id=@id FOR UPDATE", new { id }, tx);
+            Check.That(o is not null, "Không tìm thấy đơn.", 404);
+            // A repeated click after success must never create another receipt or commission.
+            if ((string)o!.status == "completed" && (decimal)o.paid == (decimal)o.subtotal + (decimal)o.shipping)
+            {
+                await tx.CommitAsync();
+                return Results.NoContent();
+            }
+            Check.That((int)o.version == r.Version, "Đơn đã thay đổi. Vui lòng tải lại.", 409);
+            Check.That(new[] { "pending", "confirmed", "shipping", "completed" }.Contains((string)o.status), "Không thể hoàn tất đơn đã hủy hoặc trả hàng.", 409);
+            Check.That(await c.ExecuteScalarAsync<int>("SELECT count(*) FROM commissions WHERE order_id=@id AND status IN ('approved','paid')", new { id }, tx) == 0, "Hoa hồng đã duyệt/đã chi; cần đối soát trước khi thay đổi.", 409);
+            var total = (decimal)o.subtotal + (decimal)o.shipping;
+            var delta = total - (decimal)o.paid;
+            if (delta > 0)
+            {
+                var reference = "Hoàn tất & thu đủ đơn " + (string)o.code;
+                await c.ExecuteAsync("INSERT INTO payments(id,order_id,actor_id,amount,reference,occurred_at) VALUES(@pid,@id,@actor,@delta,@reference,now())", new { pid=Guid.NewGuid(), id, actor=ctx.User().Id, delta, reference }, tx);
+                await Event(c, tx, id, ctx.User().Id, "payment", new { before=(decimal)o.paid, after=total, reference });
+            }
+            await c.ExecuteAsync("UPDATE orders SET paid=@total,status='completed',completed_at=COALESCE(completed_at,now()),version=version+1,updated_at=now() WHERE id=@id", new { id, total }, tx);
+            if ((string)o.status != "completed")
+                await Event(c, tx, id, ctx.User().Id, "status", new { from=(string)o.status, to="completed", reason="Quản lý xác nhận đã giao xong và thu đủ tiền" });
+            await SyncCommission(c, tx, id);
+            await db.Audit(c, tx, ctx.User().Id, "order_completed_and_collected", id, new { previousStatus=(string)o.status, previousPaid=(decimal)o.paid, collected=delta, total });
+            await tx.CommitAsync();
+            return Results.NoContent();
+        });
         app.MapPost("/api/orders/{id:guid}/payment", async (Guid id, PaymentRequest r, HttpContext ctx, Db db) =>
         {
             ctx.Manager(); Check.That(r.Paid >= 0 && decimal.Truncate(r.Paid) == r.Paid, "Số tiền không hợp lệ."); Check.Text(r.Reference, 300, true);

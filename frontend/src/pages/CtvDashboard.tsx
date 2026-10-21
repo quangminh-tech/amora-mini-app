@@ -115,9 +115,9 @@ export function CtvDashboard({
                 symbol: "✎",
               },
               {
-                label: "Đơn đã hoàn tất",
-                value: completed,
-                note: "Theo ngày hoàn tất trong kỳ",
+                label: "Giá trị đơn trong kỳ",
+                value: money(d.orders.booked),
+                note: `${d.orders.created_count} đơn tạo trong kỳ · gồm vận chuyển · trừ hủy/trả`,
                 page: "orders",
                 symbol: "✿",
               },
@@ -176,6 +176,12 @@ export function CtvDashboard({
             </section>
             <section className="panel">
               <h3>Ví hoa hồng của bạn</h3>
+          <p className="notice">
+            Đã thu ròng trong kỳ: <strong>{money(d.collected)}</strong> · theo ngày thu,
+            gồm vận chuyển và điều chỉnh. Đơn mới đã được tính vào giá trị đơn.
+            Hoa hồng chờ nhận chỉ phát sinh khi đơn hoàn tất, thu đủ và có hoa hồng CTV.
+          </p>
+
               {[
                 ["pending", "Chờ quản lý duyệt"],
                 ["approved", "Đã duyệt, chờ chi"],
